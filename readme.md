@@ -19,6 +19,10 @@ Streets, buildings and the shape of the ground come from open map data.
 reads **Run on**, to move at about two thirds again the walking pace. On a phone the left thumb walks, the right
 thumb looks, and Run and Jump sit in the bottom right corner.
 
+**Detail** steps the picture from coarse to finest. It sets both the size of the type and how many characters a
+frame may hold, so on a large screen the finest setting draws about seven times as many characters as the
+coarsest, and the footer counts them for you. Drop it a step or two if a walk feels heavy on an older phone.
+
 ## Set it up on GitHub Pages
 
 1. Create a new **public** repository on GitHub, for example `walk-any-town`.
@@ -82,6 +86,8 @@ records, so a building with no tags is a plausible building rather than the real
   the old High Street stands well above the shops on London Road.
 - Buildings stand level on the mean ground under their own footprint, so a house on a slope shows more wall on
   its downhill side, as it does in life.
+- The trees you see are the ones the map records, the woods it outlines, and a thin scatter over open grass,
+  about one to every hundred metres square. Streets are not meant to disappear behind invented foliage.
 - Map data © OpenStreetMap contributors, under the Open Database Licence. Ground heights come from
   [OpenTopoData](https://www.opentopodata.org/), which serves EU-DEM (produced using Copernicus data funded by
   the European Union), Mapzen terrain tiles and NASA SRTM. Keep both credits in the page footer.

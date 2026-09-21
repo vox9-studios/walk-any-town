@@ -437,7 +437,8 @@ function buildFromOSM(data,lat0,lon0){
   };
   for(const p of trees){const c=Math.floor(p[1])*N+Math.floor(p[0]);if(p[0]>8&&p[1]>8&&p[0]<N-8&&p[1]<N-8&&(Mt[c]===2||Mt[c]===9)){Mt[c]=0;}tree(p[0],p[1],true);}
   const wood=new Uint8Array(N*N);for(const r of woods)fillPoly(r,c=>{wood[c]=1;});
-  for(let k=0;k<5000;k++){const x=rnd()*N,y=rnd()*N,c=Math.floor(y)*N+Math.floor(x);if(wood[c]||k<450)tree(x,y);}
+  const loose=Math.round(N*N/10000);   // trees nobody has mapped, sown thinly over open grass
+  for(let k=0;k<5000;k++){const x=rnd()*N,y=rnd()*N,c=Math.floor(y)*N+Math.floor(x);if(wood[c]||k<loose)tree(x,y);}
   // stand on the nearest open ground to the chosen spot
   let sx=Math.floor(spawn.x),sy=Math.floor(spawn.y),found=false;
   for(let r=0;r<300&&!found;r++)for(let a=0;a<Math.max(1,r*6)&&!found;a++){
@@ -707,6 +708,7 @@ const fcv=document.createElement('canvas'), fctx=fcv.getContext('2d');   // one 
 const tcv=document.createElement('canvas'), tctx=tcv.getContext('2d');   // the letters themselves, used as a mask
 const STACK='ui-monospace,"SF Mono",Menlo,Consolas,"DejaVu Sans Mono","Liberation Mono",monospace';
 const DETAIL=[13,9,6,4,3], DETAIL_NAME=['coarse','medium','fine','extra fine','finest'];
+const DETAIL_CAP=[12000,22000,36000,56000,90000];   // on a big screen this, not the type size, sets the resolution
 let detail=3,ox=0,oy=0,bimg=null,fimg=null,ready=false;
 const CH=[];for(let i=0;i<128;i++)CH.push(String.fromCharCode(i));
 
@@ -721,7 +723,7 @@ function setup(){
     cw=ctx.measureText('MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM').width/40||fs*.6;
     chh=Math.max(4,Math.round(fs));
     W=Math.max(8,Math.floor(cv.width/cw));H=Math.max(6,Math.floor(cv.height/chh));
-    if(W*H<=48000||fs>60)break;
+    if(W*H<=DETAIL_CAP[detail]||fs>60)break;
     fs*=1.08;
   }
   ctx.textBaseline='middle';

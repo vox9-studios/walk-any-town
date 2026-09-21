@@ -13,6 +13,12 @@ Streets and buildings come from OpenStreetMap.
 - A place that is not in `towns.txt` falls back to a live lookup in the visitor's browser. The public map
   servers often turn these away, so treat it as a bonus rather than the main route.
 
+## Walking about
+
+`W` `A` `S` `D` or the arrow keys walk, drag to look around, space jumps. Hold shift, or press **Run off** so it
+reads **Run on**, to move at about two thirds again the walking pace. On a phone the left thumb walks, the right
+thumb looks, and Run and Jump sit in the bottom right corner.
+
 ## Set it up on GitHub Pages
 
 1. Create a new **public** repository on GitHub, for example `walk-any-town`.
@@ -38,8 +44,13 @@ To refresh a town after the map has been improved, delete its file in `data/` an
 ## Good to know
 
 - Each town is a 400 m square. The ground is flat; real slopes would need elevation data added.
-- Facades, roofs and windows are generated from rules, so streets are recognisable by layout, building size and
-  shop names rather than by exact frontages.
+- Buildings follow what the map actually records: `building:material` and `building:colour` choose the walls,
+  `roof:shape`, `roof:material` and `roof:colour` the roof, `building:levels` and `height` the storeys, and the
+  shop or amenity the colour of the fascia. Where a tag is missing the page falls back to rules drawn from the
+  kind of building and the shape of its footprint, so a terrace of houses gets ridged roofs and chimneys while a
+  deep commercial block gets a flat one behind a parapet. Window bays, doors and signs are set out from each
+  building's own frontage, so streets are recognisable by layout, size and shop names rather than exact frontages.
+- Towns fetched before this change kept fewer tags. Delete the town's file in `data/` and commit to pick the rest up.
 - Map data © OpenStreetMap contributors, under the Open Database Licence. Keep the credit line in the page footer.
 - The public OpenStreetMap servers are shared and free. This setup only touches them when you add a town,
   never when someone visits, which keeps the site within their usage rules.

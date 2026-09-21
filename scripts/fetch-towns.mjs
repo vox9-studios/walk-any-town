@@ -12,8 +12,9 @@ const OVERPASS = [
 const FILTERS = ['way[building]', 'relation[building]', 'way[highway]', 'way[natural=water]', 'relation[natural=water]',
   'way[natural=wood]', 'way[waterway]', 'way[landuse=forest]', 'way[amenity=parking]', 'node[natural=tree]',
   'node[shop][name]', 'node[amenity][name]'];
-const KEEP = ['building', 'building:levels', 'height', 'highway', 'name', 'area', 'tunnel', 'natural', 'waterway',
-  'landuse', 'amenity', 'shop'];
+const KEEP = ['building', 'building:levels', 'building:material', 'building:facade:material', 'building:colour',
+  'height', 'roof:shape', 'roof:levels', 'roof:height', 'roof:material', 'roof:colour',
+  'highway', 'name', 'area', 'tunnel', 'natural', 'waterway', 'landuse', 'amenity', 'shop', 'tourism', 'historic'];
 
 const slug = s => s.toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
 const sleep = ms => new Promise(r => setTimeout(r, ms));

@@ -45,13 +45,16 @@ canvas:active{cursor:grabbing}
   color:#e9e4c8;background:#07081ae6;border:1px solid #e9e4c866;padding:.9rem 1.1rem;font-size:.85rem;line-height:1.5;
 }
 #msg:empty{display:none}
-#jump{
-  position:absolute;right:1rem;bottom:1rem;display:none;
+#jump,#run{
+  position:absolute;right:1rem;display:none;
   color:#e9e4c8;border-color:#e9e4c8aa;background:#07081acc;padding:.9rem 1.1rem;font-size:.9rem;
 }
+#jump{bottom:1rem}
+#run{bottom:4.6rem}
+#run[aria-pressed="true"]{background:#e9e4c8;color:#07081a;border-color:#e9e4c8}
 #stick{position:absolute;width:96px;height:96px;border:1px dashed #e9e4c8aa;border-radius:50%;pointer-events:none;display:none;transform:translate(-50%,-50%)}
 #nub{position:absolute;left:50%;top:50%;width:30px;height:30px;margin:-15px;border-radius:50%;background:#e9e4c8aa}
-@media (pointer:coarse){#jump{display:block}}
+@media (pointer:coarse){#jump,#run{display:block}}
 footer{padding:.45rem .9rem;font-size:.75rem;line-height:1.4;display:flex;justify-content:space-between;gap:.2rem 1rem;flex-wrap:wrap}
 footer p{margin:0}
 #street{font-weight:700}
@@ -67,6 +70,7 @@ a{color:inherit}
     <button type="submit">Build it</button>
   </form>
   <div class="controls">
+    <button id="bRun" aria-pressed="false">Run off</button>
     <button id="bDay" aria-pressed="true">Daylight</button>
     <button id="bTour" aria-pressed="false">Fly around</button>
     <button id="bColour" aria-pressed="true">Colour on</button>
@@ -79,6 +83,7 @@ a{color:inherit}
   <canvas id="cv" aria-label="First-person view of the town, drawn entirely with text characters"></canvas>
   <div id="msg" role="status" aria-live="polite"></div>
   <div id="stick"><div id="nub"></div></div>
+  <button id="run" aria-pressed="false">Run</button>
   <button id="jump">Jump</button>
 </div>
 <footer>
@@ -107,12 +112,51 @@ const Mt=new Uint8Array(N*N);     // material
 const Bi=new Uint16Array(N*N);    // which building
 const Rn=new Uint16Array(N*N);    // which street name
 let bld=[null], names=[''], worldReady=false, spawn={x:CX,y:CY,yaw:-Math.PI/2};
-// materials: 0 grass 1 stone 2 paving 3 water 4 tree 5 asphalt 6 brick 7 render 8 timber frame 9 dirt
-const MAT=[[96,150,62],[172,166,150],[176,170,158],[34,74,112],[48,104,54],[78,80,86],[170,98,72],[228,220,200],[234,228,212],[150,122,84]];
-const RAMPS=[".,:;vwVW",".:;rtIHM#",".,:;=xXH"," .-~~=zZ",".:^itAY#",".,:;-=+x",".:;=rtHM#",".,:;ilIL",".,:;ilIL",".,:oaeSB"]
+// materials: 0 grass 1 stone 2 paving 3 water 4 tree 5 asphalt 6 brick 7 render 8 timber frame 9 dirt 10 concrete
+const MAT=[[96,150,62],[172,166,150],[176,170,158],[34,74,112],[48,104,54],[78,80,86],[170,98,72],[228,220,200],[234,228,212],[150,122,84],[152,152,148]];
+const RAMPS=[".,:;vwVW",".:;rtIHM#",".,:;=xXH"," .-~~=zZ",".:^itAY#",".,:;-=+x",".:;=rtHM#",".,:;ilIL",".,:;ilIL",".,:oaeSB",".,:;=+oX"]
   .map(s=>Array.from(s,c=>c.charCodeAt(0)));
-const ROOF=[[156,86,60],[86,90,104],[124,98,76]], ROOFR=Array.from(".:~=unUM#",c=>c.charCodeAt(0));
+// roof coverings: clay tile, slate, brown tile, felt, thatch, metal
+const ROOF=[[156,86,60],[86,90,104],[124,98,76],[66,68,72],[190,164,110],[138,146,152]], ROOFR=Array.from(".:~=unUM#",c=>c.charCodeAt(0));
+const ROOFMAT={tile:0,tiles:0,roof_tiles:0,clay:0,clay_tiles:0,terracotta:0,pantile:0,shingle:2,wood:2,timber:2,
+  slate:1,stone:1,eternit:1,asbestos:1,tar_paper:3,roofing_felt:3,gravel:3,asphalt:3,bitumen:3,concrete:3,
+  thatch:4,reed:4,straw:4,metal:5,zinc:5,copper:5,tin:5,lead:5,steel:5,corrugated_iron:5,glass:5};
+// what the walls are made of, as building:material writes it
+const WALLMAT={brick:6,bricks:6,brickwork:6,red_brick:6,brick_block:6,clay:6,tile:6,
+  stone:1,stonework:1,sandstone:1,limestone:1,granite:1,masonry:1,flint:1,slate:1,marble:1,
+  concrete:10,cement:10,cement_block:10,metal:10,steel:10,glass:10,aluminium:10,plastic:10,
+  plaster:7,render:7,stucco:7,roughcast:7,pebbledash:7,painted:7,cob:7,
+  wood:8,timber:8,timber_framing:8,half_timbered:8,wattle_and_daub:8};
 const SIGNS=[[28,60,52],[110,30,34],[24,40,88],[40,40,44],[92,62,20]];
+// a shop's trade picks the colour of its fascia board, the way real signs run to type
+const TRADE={pub:[38,56,42],bar:[38,56,42],biergarten:[38,56,42],restaurant:[92,34,34],cafe:[84,56,32],
+  fast_food:[168,56,36],bakery:[138,90,42],butcher:[124,34,38],greengrocer:[54,86,50],deli:[96,62,34],
+  bank:[26,46,82],pharmacy:[30,92,70],chemist:[30,92,70],supermarket:[36,68,126],convenience:[36,68,126],
+  hairdresser:[62,38,74],beauty:[108,50,86],massage:[108,50,86],pet_grooming:[86,62,40],
+  clothes:[34,38,46],shoes:[34,38,46],shoe_repair:[70,48,34],tailor:[40,38,54],books:[58,42,88],gift:[112,44,74],
+  florist:[54,86,50],jewelry:[52,42,76],optician:[34,70,94],estate_agent:[34,62,50],charity:[40,76,62],
+  hardware:[132,74,28],newsagent:[150,44,40],post_office:[150,44,40],travel_agency:[30,84,108],
+  funeral_directors:[36,36,40],tattoo:[36,36,40],car:[40,44,52],weapons:[52,44,34],hotel:[62,40,60],
+  veterinary:[34,80,72],cinema:[74,28,62],theatre:[74,28,62]};
+const COLNAME={white:[234,230,218],offwhite:[230,224,206],cream:[232,222,192],ivory:[234,228,208],beige:[220,206,176],
+  black:[46,46,50],grey:[140,140,142],gray:[140,140,142],lightgrey:[186,186,184],darkgrey:[86,86,90],
+  silver:[186,186,188],red:[164,62,52],darkred:[118,40,36],maroon:[104,44,44],brown:[132,94,66],lightbrown:[168,128,92],
+  yellow:[214,190,110],gold:[196,164,88],orange:[198,118,60],terracotta:[186,104,72],tan:[198,172,132],sandstone:[204,180,140],
+  green:[92,116,74],darkgreen:[58,84,56],lightgreen:[132,158,110],olive:[110,112,70],
+  blue:[74,96,136],lightblue:[132,160,190],darkblue:[44,58,94],navy:[48,62,96],navyblue:[48,62,96],
+  purple:[96,68,108],violet:[96,68,108],pink:[214,178,178],turquoise:[70,142,142]};
+const signOf=n=>(n||'').toUpperCase().normalize('NFKD').replace(/[\u0300-\u036f]/g,'').replace(/[^A-Z0-9 &']/g,'');
+function parseCol(v){                  // building:colour and roof:colour, as a name or a #hex
+  if(!v)return null;
+  const t=String(v).trim().toLowerCase();
+  if(t[0]==='#'){
+    const h=t.slice(1);
+    if(/^[0-9a-f]{3}$/.test(h))return[parseInt(h[0]+h[0],16),parseInt(h[1]+h[1],16),parseInt(h[2]+h[2],16)];
+    if(/^[0-9a-f]{6}$/.test(h))return[parseInt(h.slice(0,2),16),parseInt(h.slice(2,4),16),parseInt(h.slice(4,6),16)];
+    return null;
+  }
+  return COLNAME[t.replace(/[^a-z]/g,'')]||null;
+}
 const ROADW={motorway:10,trunk:10,primary:9,secondary:8,tertiary:7,residential:6,unclassified:6,living_street:5,service:4,pedestrian:6,footway:2,path:2,cycleway:2.5,steps:2,track:3,bridleway:2};
 
 function fillPoly(rings,fn){           // even-odd scanline fill, holes included
@@ -156,7 +200,8 @@ function buildFromOSM(data,lat0,lon0){
   for(const e of data.elements||[]){
     const t=e.tags||{};
     if(e.type==='node'){
-      if(t.natural==='tree')trees.push(P(e));else if(t.name&&(t.shop||t.amenity))pois.push({p:P(e),name:t.name});
+      if(t.natural==='tree')trees.push(P(e));
+      else if(t.name&&(t.shop||t.amenity))pois.push({p:P(e),name:t.name,kind:(t.shop||t.amenity||'').toLowerCase()});
       continue;
     }
     const rings=e.type==='way'?(e.geometry?[e.geometry.map(P)]:[]):(e.members||[]).filter(m=>m.geometry).map(m=>m.geometry.map(P));
@@ -189,35 +234,122 @@ function buildFromOSM(data,lat0,lon0){
   for(const r of plazas)fillPoly(r,set(2,G+.3));
   for(const r of roads)if(!car(r)){const ni=nameIdx(r.t.name),m=r.t.highway==='track'?9:2;fillLine(r.pts,M(ROADW[r.t.highway]),c=>{if(Mt[c]!==5){Mt[c]=m;Hm[c]=G+.3;if(ni)Rn[c]=ni;}});}
   for(const r of roads)if(car(r)){const ni=nameIdx(r.t.name);fillLine(r.pts,M(ROADW[r.t.highway]),c=>{Mt[c]=5;Hm[c]=G;if(ni)Rn[c]=ni;});}
-  // buildings
+  // buildings: what the map says each one is made of, how tall it stands, and what shape its roof takes
   for(const b of buildings){
-    const t=b.t,hs=hash2(b.id%100003,7),hs2=hash2(b.id%100003,19);
-    const church=/church|cathedral|chapel/.test(t.building)||t.amenity==='place_of_worship';
-    const small=/garage|garages|shed|roof|hut|carport/.test(t.building);
-    let hm=parseFloat(t.height);
-    if(!(hm>0)){const lv=parseFloat(t['building:levels']);hm=lv>0?lv*3+.5:small?2.6:church?12:6+Math.floor(hs*2.2)*3;}
-    const lv=parseFloat(t['building:levels'])||0;
+    const t=b.t,hs=hash2(b.id%100003,7),hs2=hash2(b.id%100003,19),hs3=hash2(b.id%100003,41);
+    const kind=(t.building||'yes').toLowerCase(), trade=(t.shop||t.amenity||t.tourism||'').toLowerCase();
+    const church=/church|cathedral|chapel/.test(kind)||t.amenity==='place_of_worship';
+    const small=/garage|shed|roof|hut|carport|kiosk|cabin/.test(kind);
+    const house=/^(house|detached|semidetached_house|semi|terrace|terraced|bungalow|residential|cottage)$/.test(kind);
+    const big=/retail|commercial|industrial|supermarket|warehouse|office|civic|public|hospital|school|apartments|hotel/.test(kind);
+    // the footprint, which gives both the frontage and the way a ridge would run
+    let x0=1e9,y0=1e9,x1=-1e9,y1=-1e9;
+    for(const r of b.rings)for(const q of r){if(q[0]<x0)x0=q[0];if(q[0]>x1)x1=q[0];if(q[1]<y0)y0=q[1];if(q[1]>y1)y1=q[1];}
+    const fw=Math.max(2,x1-x0), fd=Math.max(2,y1-y0);
+    // height: the map's own figure, else its storeys, else a guess from the kind of building
+    let hm=parseFloat(t.height), lv=parseFloat(t['building:levels'])||0;
+    if(!(hm>0))hm=lv>0?lv*3+.6:small?2.6:church?12:house?(hs<.35?8.2:6.2):big?4+Math.floor(hs*3)*3.2:6+Math.floor(hs*2.2)*3;
+    if(!lv)lv=Math.max(1,Math.round((hm-.6)/3));
+    const top=G+Math.max(2.4,hm)/CELL, wall=top-G;
+    // roof: flat behind a parapet, hipped, or a ridge running along the longer side
+    const rs=(t['roof:shape']||'').toLowerCase();
+    const square=Math.min(fw,fd)/Math.max(fw,fd)>.82;
+    let prof=rs?(/(flat|skillion|shed|sawtooth)/.test(rs)?0:/(hip|mansard|pyramid|dome|cone|onion)/.test(rs)?1:2)
+              :small?0:church?2:(lv>=5||(big&&lv>=3&&Math.min(fw,fd)>26))?0:2;
+    if(prof===2&&square&&!church)prof=1;
+    if(prof===2)prof=fw>=fd?2:3;                          // 2: the ridge runs east-west, 3: north-south
+    const slope=church?1.1:house?.85:small?.4:.62;
+    const rh=parseFloat(t['roof:height']), rlv=parseFloat(t['roof:levels'])||0;
+    const span=Math.min(fw,fd)/2;
+    const cap=rh>0?rh/CELL:rlv>0?rlv*5.2:Math.min(span*slope,church?24:house?11:8);
+    let ri=ROOFMAT[(t['roof:material']||'').toLowerCase()];
+    if(ri===undefined)ri=prof===0?3:church?1:hs2<.5?0:1;
+    let style=WALLMAT[(t['building:material']||t['building:facade:material']||'').toLowerCase()];
+    if(style===undefined)style=church?1:small?7:(big&&lv>=4)?10:hs2<.62?6:hs2<.88?7:8;
+    const col=parseCol(t['building:colour']);
+    const shop=!!(t.shop||/retail|commercial|kiosk/.test(kind)||/cafe|restaurant|pub|bank|fast_food|bar|pharmacy|post_office|cinema|theatre/.test(t.amenity||''));
+    const fh=Math.min(8,Math.max(4.6,wall/lv));           // one storey, in cells
+    const bayOf=(len,want)=>len/Math.max(1,Math.round(len/want));
+    const want=shop?8:house?6.4:7;                        // a window bay every three or four metres
     const info={
-      style:church?1:hs2<.5?6:hs2<.8?7:8, roof:Math.floor(hs*2.99), tint:.86+.24*hs2,
-      cap:small?1:church?14:(lv>=4||/retail|commercial|industrial|supermarket|warehouse/.test(t.building))?1.2:7,
-      shop:!!(t.shop||/retail|commercial/.test(t.building)||/cafe|restaurant|pub|bank|fast_food|bar/.test(t.amenity||'')),
-      sign:'',signCol:SIGNS[Math.floor(hs2*4.99)]
+      style, tint:col?.95+.1*hs2:.86+.24*hs2, col, roofCol:parseCol(t['roof:colour'])||ROOF[ri],
+      prof, slope, cap, church, small, house, shop,
+      x0, y0, x1, y1, wx:fw, wy:fd, bayX:bayOf(fw,want), bayY:bayOf(fd,want),
+      fh, g0:Math.min(wall,shop?fh*1.15:fh),              // shops carry a taller ground floor
+      dEvery:house?2:shop?1:3, dBay:Math.floor(hs3*3)%(house?2:3),
+      sign:'', signCol:TRADE[trade]||SIGNS[Math.floor(hs2*4.99)]
     };
-    info.sign=(t.name||'').toUpperCase().replace(/[^A-Z0-9 &']/g,'');
+    info.sign=signOf(t.name);
     const idx=bld.length;if(idx>65000)break;bld.push(info);
-    const top=G+Math.max(2.4,hm)/CELL;
     fillPoly(b.rings,c=>{Bi[c]=idx;Mt[c]=info.style;Hm[c]=top;Ev[c]=top;});
   }
   for(const p of pois){                                 // shops mapped as points: mark the building they sit in
     const x=Math.floor(p.p[0]),y=Math.floor(p.p[1]);if(x<0||y<0||x>=N||y>=N)continue;
-    const B=bld[Bi[y*N+x]];if(B){B.shop=true;if(!B.sign)B.sign=p.name.toUpperCase().replace(/[^A-Z0-9 &']/g,'');}
+    const B=bld[Bi[y*N+x]];
+    if(B){
+      B.shop=true;
+      if(!B.sign)B.sign=signOf(p.name);
+      if(TRADE[p.kind])B.signCol=TRADE[p.kind];
+    }
   }
-  // pitched roofs: distance from the nearest outside wall lifts the roof towards a ridge
-  const D=new Float32Array(N*N);
+  // roofs: how far a cell lies from its own building's outside wall decides how high the covering rises.
+  // A neighbour counts as outside, so a terrace gets a roof per house rather than one long mass.
+  const D=new Float32Array(N*N), Dx=new Float32Array(N*N), Dy=new Float32Array(N*N);
   for(let i=0;i<N*N;i++)D[i]=Bi[i]?1e4:0;
-  for(let y=1;y<N-1;y++)for(let x=1;x<N-1;x++){const c=y*N+x;if(D[c]){D[c]=Math.min(D[c],D[c-1]+1,D[c-N]+1,D[c-N-1]+1.41,D[c-N+1]+1.41);}}
-  for(let y=N-2;y>0;y--)for(let x=N-2;x>0;x--){const c=y*N+x;if(D[c]){D[c]=Math.min(D[c],D[c+1]+1,D[c+N]+1,D[c+N+1]+1.41,D[c+N-1]+1.41);}}
-  for(let i=0;i<N*N;i++)if(Bi[i])Hm[i]+=Math.min(D[i]*.75,bld[Bi[i]].cap);
+  for(let y=1;y<N-1;y++)for(let x=1;x<N-1;x++){
+    const c=y*N+x,b=Bi[c];if(!b)continue;
+    let v=D[c],t;
+    t=(Bi[c-1]===b?D[c-1]:0)+1;if(t<v)v=t;
+    t=(Bi[c-N]===b?D[c-N]:0)+1;if(t<v)v=t;
+    t=(Bi[c-N-1]===b?D[c-N-1]:0)+1.41;if(t<v)v=t;
+    t=(Bi[c-N+1]===b?D[c-N+1]:0)+1.41;if(t<v)v=t;
+    D[c]=v;
+  }
+  for(let y=N-2;y>0;y--)for(let x=N-2;x>0;x--){
+    const c=y*N+x,b=Bi[c];if(!b)continue;
+    let v=D[c],t;
+    t=(Bi[c+1]===b?D[c+1]:0)+1;if(t<v)v=t;
+    t=(Bi[c+N]===b?D[c+N]:0)+1;if(t<v)v=t;
+    t=(Bi[c+N+1]===b?D[c+N+1]:0)+1.41;if(t<v)v=t;
+    t=(Bi[c+N-1]===b?D[c+N-1]:0)+1.41;if(t<v)v=t;
+    D[c]=v;
+  }
+  for(let y=0;y<N;y++){                                 // the same distance measured along one axis only: a ridge
+    let run=0,prev=0;
+    for(let x=0;x<N;x++){const c=y*N+x,b=Bi[c];run=b?(b===prev?run+1:1):0;prev=b;Dx[c]=run;}
+    run=0;prev=0;
+    for(let x=N-1;x>=0;x--){const c=y*N+x,b=Bi[c];run=b?(b===prev?run+1:1):0;prev=b;if(b&&run<Dx[c])Dx[c]=run;}
+  }
+  for(let x=0;x<N;x++){
+    let run=0,prev=0;
+    for(let y=0;y<N;y++){const c=y*N+x,b=Bi[c];run=b?(b===prev?run+1:1):0;prev=b;Dy[c]=run;}
+    run=0;prev=0;
+    for(let y=N-1;y>=0;y--){const c=y*N+x,b=Bi[c];run=b?(b===prev?run+1:1):0;prev=b;if(b&&run<Dy[c])Dy[c]=run;}
+  }
+  for(let i=0;i<N*N;i++){
+    const b=Bi[i];if(!b)continue;
+    const B=bld[b];
+    if(B.prof===0){if(D[i]<1.7)Hm[i]+=.55;}             // flat, with a parapet standing round the edge
+    else{
+      const r=((B.prof===1?D[i]:B.prof===2?Dy[i]:Dx[i])-.5)*B.slope;
+      Hm[i]+=r<0?0:r<B.cap?r:B.cap;
+    }
+  }
+  for(let i=1;i<bld.length;i++){                        // chimney stacks, where a pitched roof is big enough for one
+    const B=bld[i];
+    if(B.prof<2||B.church||B.small||Math.min(B.wx,B.wy)<7)continue;
+    const mx=(B.x0+B.x1)/2, my=(B.y0+B.y1)/2;
+    const ends=B.prof===2?[[B.x0+2.5,my],[B.x1-2.5,my]]:[[mx,B.y0+2.5],[mx,B.y1-2.5]];
+    for(const q of ends){
+      const ex=Math.floor(q[0]),ey=Math.floor(q[1]);
+      if(ex<1||ey<1||ex>=N-2||ey>=N-2||Bi[ey*N+ex]!==i)continue;
+      const h=Hm[ey*N+ex]+2.4;                          // a little over a metre of brick above the tiles
+      for(let y=ey;y<=ey+1;y++)for(let x=ex;x<=ex+1;x++){
+        const c=y*N+x;if(Bi[c]!==i)continue;
+        Bi[c]=0;Ev[c]=0;Mt[c]=6;Hm[c]=h;
+      }
+    }
+  }
   // trees: mapped ones, woods, and a scatter over open grass
   const rnd=mulberry(Math.floor(Math.abs(lat0*1e4))+Math.floor(Math.abs(lon0*1e4))*31);
   const tree=(tx,ty,street)=>{
@@ -287,29 +419,48 @@ function shade(i,m,isTop,wx,wy,wz,nx,ny,d,li,ci){
   const bi=ci>=0?Bi[ci]:0;
   if(bi){
     const B=bld[bi];
-    if(isTop||wz>Ev[ci]+.01){                                   // roof tiles
-      base=ROOF[B.roof];ramp=ROOFR;
+    if(isTop||wz>Ev[ci]+.01){                                   // the roof covering
+      base=B.roofCol;ramp=ROOFR;
       tex=(.84+.2*(Math.floor(wz*2)&1))*(.9+.2*hash2(Math.floor(wx*2),Math.floor(wy*2)));
-    }else{                                                      // a facade, generated from the wall's own coordinates
-      let u=nx!==0?wy:wx;if(!(ny>0||nx<0))u=-u;
-      const zz=wz-G, fl=Math.floor(zz/6), fz=zz-fl*6, wu=((u%5)+5)%5, row=Math.floor(zz);
-      tex=B.tint;
-      if(m===6){if(zz-row<.18&&d<70){tex*=.72;force=45;}else tex*=.9+.2*hash2(Math.floor((u+(row&1))/2),row);}
-      else if(m===1){const r3=Math.floor(zz/1.5);tex*=.85+.3*hash2(Math.floor((u+(r3&1)*1.5)/3),r3);if(zz/1.5-r3<.14&&d<70){tex*=.6;force=45;}}
-      else if(m===8&&(wu<.4||Math.abs(wu-2.5)<.2||fz<.45||(fl>0&&Math.abs((wu<2.5?wu:5-wu)-fz*.4)<.22))){tex=.16;force=35;}
-      let glass=false;
-      if(fl===0&&B.shop){
-        if(fz>=4.5){                                            // fascia, lettered with the shop's name
-          base=B.signCol;tex=1;force=0;
-          const s=B.sign,n=s.length+4,k=((Math.floor(u)%n)+n)%n;
-          if(k<s.length&&s.charCodeAt(k)!==32){force=s.charCodeAt(k);letter=true;}
-        }else if(fz>1.2&&wu>.4&&wu<3.8)glass=true;
-        else if(fz<4.2&&wu>=4&&wu<4.9){tex=.3;force=72;}
-      }else if(fz>1.8&&fz<4.6&&wu>1.4&&wu<3.4&&wz<Ev[ci]-.8)glass=true;
-      else if(fl===0&&fz<4.2&&wu>=3.9&&wu<4.9&&hash2(Math.floor(u/5),bi)<.4){tex=.3;force=72;}
-      if(glass){
-        if(!day&&hash2(Math.floor(u/5)+fl*31,bi)<.5){er=255;eg=196;eb=104;force=35;}
-        else{base=[58,80,108];tex=(fz>3.2?1.25:.95);force=46;}
+    }else{                                                      // a facade, set out from this building's own corners
+      let u,u0,len,bay;
+      if(nx!==0){u=wy;len=B.wy;bay=B.bayY;u0=nx<0?B.y0:-B.y1;}
+      else{u=wx;len=B.wx;bay=B.bayX;u0=ny>0?B.x0:-B.x1;}
+      if(!(ny>0||nx<0))u=-u;
+      const uu=u-u0, zz=wz-G, row=Math.floor(zz);               // along the frontage from one corner, and up from the pavement
+      let fl,fz;                                                // which storey, and how far up that storey we are
+      if(zz<B.g0){fl=0;fz=zz/B.g0;}else{const q=(zz-B.g0)/B.fh;fl=1+Math.floor(q);fz=q-Math.floor(q);}
+      const nb=Math.floor(uu/bay), wu=uu/bay-nb;                // which window bay, and how far across it
+      tex=B.tint;if(B.col)base=B.col;
+      if(m===6){if(zz-row<.18&&d<70){tex*=.72;force=45;}else tex*=.9+.2*hash2(Math.floor((uu+(row&1))/2),row);}
+      else if(m===1){const r3=Math.floor(zz/1.5);tex*=.85+.3*hash2(Math.floor((uu+(r3&1)*1.5)/3),r3);if(zz/1.5-r3<.14&&d<70){tex*=.6;force=45;}}
+      else if(m===10){tex*=.94+.12*hash2(Math.floor(uu/3),Math.floor(zz/3));if(fl>0&&fz<.05&&d<70){tex*=.84;force=45;}}
+      else if(m===8&&(wu<.09||wu>.91||fz<.09||Math.abs(wu-.5)<.045||(fl>0&&Math.abs(Math.min(wu,1-wu)*2-fz)<.08))){tex=.16;force=35;}
+      const cx=Math.abs(wu-.5), doorBay=((nb%B.dEvery)+B.dEvery)%B.dEvery===B.dBay;
+      let glass=false,door=false,board=false;
+      if(!(B.shop&&fl===0)&&zz<.5){tex*=.74;force=45;}          // a plinth course where the wall meets the pavement
+      if(B.shop&&fl===0){                                       // a shopfront: fascia board, glazing, stall riser, doorway
+        if(fz>.78){
+          base=B.signCol;tex=1;force=0;board=true;
+          const sg=B.sign,k=Math.floor(uu-(len-sg.length)/2);   // the name reads centred on the frontage
+          if(k>=0&&k<sg.length&&sg.charCodeAt(k)!==32){force=sg.charCodeAt(k);letter=true;}
+        }
+        else if(fz>.73){tex*=.5;force=61;board=true;}
+        else if(doorBay&&cx<.17&&fz<.66)door=true;
+        else if(fz>.15&&cx<.42)glass=true;
+        else if(fz<=.15){tex*=.62;force=61;}
+      }else{                                                    // plain windows, one to a bay, and a front door
+        const lo=fl===0?.3:.26, ww=B.shop?.19:.16;
+        if(fl===0&&doorBay&&cx<.12&&fz<.62)door=true;
+        else if(fz>lo&&fz<.8&&cx<ww&&wz<Ev[ci]-.7)glass=true;
+        else if(fz>lo-.09&&fz<=lo&&cx<ww+.05){tex*=.78;force=61;}
+      }
+      const eave=Ev[ci]-wz;
+      if(!glass&&!door&&!board&&eave<1&&eave>=0){tex*=.62;force=61;}   // the gutter line under the eaves
+      if(door){base=[66,48,36];tex=.6;force=35;}
+      else if(glass){
+        if(!day&&hash2(nb+fl*31,bi)<.5){er=255;eg=196;eb=104;force=35;}
+        else{base=[58,80,108];tex=(fz>.6?1.25:.95);force=46;}
       }
     }
   }else if(m===0)tex=(.78+.4*hash2(Math.floor(wx*1.7),Math.floor(wy*1.7)))*(.9+.2*vnoise(wx*.06,wy*.06));
@@ -337,7 +488,7 @@ function shade(i,m,isTop,wx,wy,wz,nx,ny,d,li,ci){
     }
     let rr,rg,rb;
     if(hit>=0){
-      const b2=Bi[hit]?ROOF[bld[Bi[hit]].roof]:MAT[Mt[hit]],f2=1-Math.exp(-(d+t)*FOGK);
+      const b2=Bi[hit]?bld[Bi[hit]].roofCol:MAT[Mt[hit]],f2=1-Math.exp(-(d+t)*FOGK);
       rr=b2[0]*(AR+SR*.4);rg=b2[1]*(AG+SG*.4);rb=b2[2]*(AB+SB*.4);
       rr+=(FOG[0]-rr)*f2;rg+=(FOG[1]-rg)*f2;rb+=(FOG[2]-rb)*f2;
     }else{skyCalc(Math.atan2(diry,dirx),Math.atan(s2/Math.hypot(dirx,diry)),false);rr=o_r;rg=o_g;rb=o_b;}
@@ -601,6 +752,10 @@ const reduce=window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').m
 let tour=false,tourA=Math.PI/2+.9;
 const keys={};let stick=null;const looks=new Map();let wantJump=false;
 
+const WALK=11.25, RUN=18.75;        // cells a second, and a cell is half a metre
+let runLock=false;
+const running=()=>runLock||!!(keys.ShiftLeft||keys.ShiftRight);
+
 const hAt=(x,y)=>{const cx=Math.floor(x),cy=Math.floor(y);return(cx<0||cy<0||cx>=N||cy>=N)?G:Hm[cy*N+cx];};
 const groundAt=(x,y)=>Math.max(hAt(x-.35,y-.35),hAt(x+.35,y-.35),hAt(x-.35,y+.35),hAt(x+.35,y+.35));
 
@@ -617,7 +772,7 @@ function update(dt){
   w.yaw+=(((keys.ArrowRight)?1:0)-((keys.ArrowLeft)?1:0))*1.9*dt;
   if(stick){str+=stick.dx;fwd-=stick.dy;}
   const len=Math.hypot(fwd,str);if(len>1){fwd/=len;str/=len;}
-  const c=Math.cos(w.yaw),s=Math.sin(w.yaw),sp=(keys.ShiftLeft||keys.ShiftRight?15:9)*dt;
+  const c=Math.cos(w.yaw),s=Math.sin(w.yaw),sp=(running()?RUN:WALK)*dt;
   const nx=w.x+(fwd*c-str*s)*sp, ny=w.y+(fwd*s+str*c)*sp;
   if(groundAt(nx,w.y)<=w.feet+1.15)w.x=nx;
   if(groundAt(w.x,ny)<=w.feet+1.15)w.y=ny;
@@ -643,6 +798,16 @@ const bDay=document.getElementById('bDay');
 bDay.onclick=()=>{setMode(!day);bDay.textContent=day?'Daylight':'Night';bDay.setAttribute('aria-pressed',String(day));};
 bDetail.onclick=()=>{detail=(detail+1)%DETAIL.length;bDetail.textContent='Detail: '+DETAIL_NAME[detail];setup();};
 document.getElementById('jump').addEventListener('pointerdown',e=>{e.preventDefault();wantJump=true;takeControl();});
+
+const bRun=document.getElementById('bRun'),runEl=document.getElementById('run');
+function setRun(v){
+  runLock=v;
+  bRun.textContent=v?'Run on':'Run off';
+  bRun.setAttribute('aria-pressed',String(v));
+  runEl.setAttribute('aria-pressed',String(v));
+}
+bRun.onclick=()=>{setRun(!runLock);takeControl();};
+runEl.addEventListener('pointerdown',e=>{e.preventDefault();setRun(!runLock);takeControl();});
 
 const MOVE=['KeyW','KeyA','KeyS','KeyD','ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space'];
 addEventListener('keydown',e=>{
@@ -679,7 +844,7 @@ cv.addEventListener('pointerup',endPtr);cv.addEventListener('pointercancel',endP
 cv.addEventListener('contextmenu',e=>e.preventDefault());
 
 const coarse=window.matchMedia&&matchMedia('(pointer:coarse)').matches;
-document.getElementById('hint').textContent=coarse?'Left thumb walks, right thumb looks.':'W A S D to walk, drag to look, space to jump, shift to run.';
+document.getElementById('hint').textContent=coarse?'Left thumb walks, right thumb looks; Run and Jump are bottom right.':'W A S D to walk, drag to look, space to jump, shift or the Run button to run.';
 
 /* ---------- loop ---------- */
 const statEl=document.getElementById('stat'),streetEl=document.getElementById('street');
@@ -700,7 +865,7 @@ function frame(now){
 }
 if(window.ResizeObserver)new ResizeObserver(setup).observe(stage);else addEventListener('resize',setup);
 setup();
-window.asciiTown={frameText,render,update,cam,walker,buildFromOSM,setMode,get size(){return[W,H];},get bg(){return bgPix;},get fg(){return fgPix;},get ch(){return chars;}};
+window.asciiTown={frameText,render,update,cam,walker,buildFromOSM,setMode,get spawn(){return spawn;},get size(){return[W,H];},get bg(){return bgPix;},get fg(){return fgPix;},get ch(){return chars;}};
 requestAnimationFrame(frame);
 loadIndex().then(()=>{
   let start=towns.length?towns[0].name:qEl.value;

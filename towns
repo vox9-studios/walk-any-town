@@ -1,0 +1,5 @@
+# One place per line. Each becomes a walkable 400 m square, centred on the place.
+# Be specific: "High Street, East Grinstead, UK" works better than "East Grinstead".
+# Lines starting with # are ignored. After editing, commit: the site rebuilds itself.
+
+High Street, East Grinstead, UK

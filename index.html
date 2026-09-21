@@ -780,32 +780,45 @@ function draw(){
 const msgEl=document.getElementById('msg'), qEl=document.getElementById('q'), hintEl=document.getElementById('hint');
 const groundEl=document.getElementById('ground');
 const DEMNAME={eudem25m:'EU-DEM, produced using Copernicus data funded by the European Union',
-  mapzen:'Mapzen terrain tiles', srtm30m:'NASA SRTM', srtm90m:'NASA SRTM', aster30m:'NASA ASTER GDEM'};
+  mapzen:'Mapzen terrain tiles', srtm30m:'NASA SRTM', srtm90m:'NASA SRTM', aster30m:'NASA ASTER GDEM',
+  copernicus90:'Copernicus DEM, served by Open-Meteo'};
 const say=t=>{msgEl.textContent=t;};
-const OVERPASS=['https://overpass.private.coffee/api/interpreter','https://overpass.kumi.systems/api/interpreter','https://overpass-api.de/api/interpreter'];
+const OVERPASS=['https://overpass-api.de/api/interpreter','https://overpass.kumi.systems/api/interpreter','https://overpass.private.coffee/api/interpreter'];
+const giveUpAfter=ms=>{                          // so one slow server cannot hold up the next
+  try{const c=new AbortController();setTimeout(()=>c.abort(),ms);return c.signal;}catch(e){return undefined;}
+};
+// A town built here is kept in the browser, so coming back to it costs nobody another request.
+const KEEP_KEY='walk-any-town';
+function kept(k){try{const s=localStorage.getItem(KEEP_KEY+':'+k);return s?JSON.parse(s):null;}catch(e){return null;}}
+function keep(k,v){
+  try{
+    const list=JSON.parse(localStorage.getItem(KEEP_KEY)||'[]').filter(x=>x!==k);
+    list.push(k);
+    while(list.length>3)localStorage.removeItem(KEEP_KEY+':'+list.shift());
+    localStorage.setItem(KEEP_KEY+':'+k,JSON.stringify(v));
+    localStorage.setItem(KEEP_KEY,JSON.stringify(list));
+  }catch(e){try{localStorage.removeItem(KEEP_KEY+':'+k);}catch(_){}}
+}
 let busy=false, towns=[];
-const ELEVATION='https://api.opentopodata.org/v1', DEM=['eudem25m','mapzen','srtm30m'];
 async function liveTerrain(lat,lon,half){        // best effort: without it the town is simply flat
-  const n=17, dLat=half/110540, dLon=half/(111320*Math.cos(lat*Math.PI/180)), pts=[];
-  for(let j=0;j<n;j++)for(let i=0;i<n;i++)
-    pts.push((lat+((j/(n-1))*2-1)*dLat).toFixed(6)+','+(lon+((i/(n-1))*2-1)*dLon).toFixed(6));
-  const until=Date.now()+9000;
-  for(const set of DEM){
-    try{
-      const v=[];
-      for(let k=0;k<pts.length;k+=100){
-        if(Date.now()>until)throw new Error('taking too long');
-        const r=await fetch(ELEVATION+'/'+set+'?locations='+pts.slice(k,k+100).join('|'));
-        const j=await r.json();
-        if(!r.ok||!j.results)throw new Error('no answer');
-        for(const q of j.results){if(typeof q.elevation!=='number')throw new Error('no cover');v.push(q.elevation);}
-        await new Promise(r2=>setTimeout(r2,1100));
-      }
-      const min=Math.min.apply(null,v);
-      return {n,base:+min.toFixed(1),dataset:set,v:v.map(e=>Math.round((e-min)*10))};
-    }catch(e){}
+  const n=17, dLat=half/110540, dLon=half/(111320*Math.cos(lat*Math.PI/180)), la=[], lo=[];
+  for(let j=0;j<n;j++)for(let i=0;i<n;i++){
+    la.push((lat+((j/(n-1))*2-1)*dLat).toFixed(6));
+    lo.push((lon+((i/(n-1))*2-1)*dLon).toFixed(6));
   }
-  return null;
+  try{
+    const v=[];
+    for(let k=0;k<la.length;k+=100){
+      const want=Math.min(100,la.length-k);
+      const r=await fetch('https://api.open-meteo.com/v1/elevation?latitude='+la.slice(k,k+want).join(',')+
+        '&longitude='+lo.slice(k,k+want).join(','),{signal:giveUpAfter(12000)});
+      const j=await r.json();
+      if(!r.ok||!j.elevation||j.elevation.length!==want)throw new Error('no answer');
+      for(const e of j.elevation){if(typeof e!=='number')throw new Error('no cover');v.push(e);}
+    }
+    const min=Math.min.apply(null,v);
+    return {n,base:+min.toFixed(1),dataset:'copernicus90',v:v.map(e=>Math.round((e-min)*10))};
+  }catch(e){return null;}
 }
 const slug=s=>s.toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'');
 async function loadIndex(){                       // towns prepared ahead of time live beside this page, in data/
@@ -829,6 +842,13 @@ async function loadPlace(q){
       try{history.replaceState(null,'','#'+t.slug);}catch(e){}
       busy=false;return;
     }
+    const key=slug(q), had=kept(key);
+    if(had){                                       // built here before, and kept in this browser
+      say('Reading '+q+' back from this browser');
+      await enter(had.data,had.lat,had.lon);
+      try{history.replaceState(null,'','#'+encodeURIComponent(q));}catch(e){}
+      busy=false;return;
+    }
     say('Finding "'+q+'"');
     let geo;
     try{
@@ -841,17 +861,21 @@ async function loadPlace(q){
     const bb='('+(lat-dLat)+','+(lon-dLon)+','+(lat+dLat)+','+(lon+dLon)+')';
     const ql='[out:json][timeout:25];('+['way[building]','relation[building]','way[highway]','way[natural=water]','relation[natural=water]','way[natural=wood]',
       'way[waterway]','way[landuse=forest]','way[amenity=parking]','node[natural=tree]','node[shop][name]','node[amenity][name]'].map(f=>f+bb+';').join('')+');out geom;';
-    say('Fetching buildings and streets around '+(geo[0].display_name||q).split(',').slice(0,3).join(','));
+    const place=(geo[0].display_name||q).split(',').slice(0,3).join(',');
     let data=null;
     for(const url of OVERPASS){
-      try{const r=await fetch(url+'?data='+encodeURIComponent(ql));   // plain GET: the servers turn away fancier requests
-        if(r.ok){data=await r.json();break;}}catch(e){}
+      try{
+        say('Fetching buildings and streets around '+place+', from '+new URL(url).host);
+        const r=await fetch(url+'?data='+encodeURIComponent(ql),{signal:giveUpAfter(20000)});   // plain GET: the servers turn away fancier requests
+        if(r.ok){data=await r.json();break;}
+      }catch(e){}
     }
-    if(!data)throw new Error('"'+q+'" is not one of the towns prepared for this site, and the live map servers turned the request away. Add it to towns.txt in the site\'s repository and it will be built in.');
+    if(!data)throw new Error('"'+q+'" could not be built just now: the map servers would not answer. They are free and shared, so this happens; wait a minute and try again, or add the place to towns.txt in the site\'s repository and it will be built in.');
     data.half=half;
     say('Reading the lie of the land');
     data.ele=await liveTerrain(lat,lon,half);
     await enter(data,lat,lon);
+    keep(key,{lat,lon,data});
     try{history.replaceState(null,'','#'+encodeURIComponent(q));}catch(e){}
   }catch(e){worldReady=false;say(e.message);}
   busy=false;

@@ -10,8 +10,13 @@ Streets, buildings and the shape of the ground come from open map data.
 - Every time you change the repository, a GitHub Action reads `towns.txt`, downloads the map data for any new
   place, saves it as `data/<place>.json`, and publishes the site. Visitors load those files from your own
   address, so nothing depends on outside servers while they walk.
-- A place that is not in `towns.txt` falls back to a live lookup in the visitor's browser. The public map
-  servers often turn these away, so treat it as a bonus rather than the main route.
+- Anyone can type a place that is not in `towns.txt` and the browser builds it there and then: it asks
+  Nominatim where the place is, the Overpass servers for its buildings and streets, and Open-Meteo for the
+  shape of its ground. A town built this way is kept in that browser, so going back to it costs nobody
+  another request, and its address ending works as a link like any other.
+- Those servers are free, shared and sometimes busy, and a refusal is normal rather than a fault. A place in
+  `towns.txt` is always there in a fraction of a second and never depends on them, so it is still the better
+  home for anywhere you care about.
 
 ## Walking about
 
@@ -64,6 +69,20 @@ A wider square is not free. The page works at half a metre to the cell, so 300 m
 takes a little under a second to build, against about a fifth of a second at 200 m. Phones manage 300 m; go much
 past that and the wait before the first frame starts to show.
 
+It works anywhere OpenStreetMap has been drawn, not only in England. These four were built and walked as a
+test, and each took about half a minute:
+
+```
+Grote Markt, Brugge, Belgium | 300
+Royal Mile, Edinburgh, UK | 300
+Asakusa, Taito, Tokyo, Japan | 300
+Bourbon Street, New Orleans, USA | 300
+```
+
+Two things to expect away from home. Where a building carries no tags the page guesses, and the guesses are
+English: brick and render, ridged roofs, chimneys, a west tower on a church. And a shop sign is drawn from the
+Latin alphabet, so a name written in Japanese or Greek leaves the fascia blank rather than wrong.
+
 To refresh a town after the map has been improved, delete its file in `data/` and commit.
 
 ## Making a town look more like itself
@@ -94,8 +113,10 @@ records, so a building with no tags is a plausible building rather than the real
   its downhill side, as it does in life.
 - The trees you see are the ones the map records, the woods it outlines, and a thin scatter over open grass,
   about one to every hundred metres square. Streets are not meant to disappear behind invented foliage.
-- Map data © OpenStreetMap contributors, under the Open Database Licence. Ground heights come from
-  [OpenTopoData](https://www.opentopodata.org/), which serves EU-DEM (produced using Copernicus data funded by
-  the European Union), Mapzen terrain tiles and NASA SRTM. Keep both credits in the page footer.
+- Map data © OpenStreetMap contributors, under the Open Database Licence. Ground heights for a town built by
+  the Action come from [OpenTopoData](https://www.opentopodata.org/), which serves EU-DEM (produced using
+  Copernicus data funded by the European Union), Mapzen terrain tiles and NASA SRTM; a town built live in the
+  browser uses [Open-Meteo](https://open-meteo.com/), which serves Copernicus DEM and, unlike OpenTopoData,
+  allows a web page to call it. The page names whichever it used in the footer. Keep both credits there.
 - The public map and elevation servers are shared and free. This setup only touches them when you add or resize
   a town, never when someone visits, which keeps the site within their usage rules.

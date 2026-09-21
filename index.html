@@ -75,6 +75,7 @@ a{color:inherit}
     <button id="bTour" aria-pressed="false">Fly around</button>
     <button id="bColour" aria-pressed="true">Colour on</button>
     <button id="bDetail">Detail: extra fine</button>
+    <button id="bBlocks" aria-pressed="false">Blocks off</button>
     <button id="bFile">Load map file</button>
     <input id="file" type="file" accept=".json,.geojson,.txt,application/json" hidden>
   </div>
@@ -468,7 +469,8 @@ function shadowMap(az,el){
 
 /* ---------- the frame: arrays of characters and colours ---------- */
 let W=0,H=0,chars,fgPix,bgPix,cw=6,chh=10;
-let time=0, colour=true, aw=.01, ah=.01;
+let HR=0,chhR=10,Lt;              // rows of picture, and how tall one is: with blocks on, two to a row of type
+let time=0, colour=true, blocks=false, aw=.01, ah=.01;
 const MAXD=380;
 const SUN={az:Math.PI/2+.65,el:.75,map:null}, MOON={az:-Math.PI/2-.5,el:.55,map:null};
 let day=true,LAZ,LEL,LDX,LDY,LCOS,LSIN,shadowH=null;
@@ -482,8 +484,8 @@ function setMode(d){
 }
 setMode(true);
 
-function put(i,c,r,g,b,fr,fg,fb){
-  chars[i]=c;
+function put(i,c,r,g,b,fr,fg,fb,lt){
+  chars[i]=c;Lt[i]=lt?1:0;
   const j=i*4;fgPix[j]=fr;fgPix[j+1]=fg;fgPix[j+2]=fb;fgPix[j+3]=255;
   bgPix[j]=r*BGK;bgPix[j+1]=g*BGK;bgPix[j+2]=b*BGK;bgPix[j+3]=255;
 }
@@ -593,7 +595,7 @@ function shade(i,m,isTop,wx,wy,wz,nx,ny,d,li,ci){
   let k=Math.floor(Math.pow(lum,GAM)*ramp.length*GAIN*(1-.5*f)+(hs-.5)*1.2);
   if(k<0)k=0;else if(k>=ramp.length)k=ramp.length-1;
   const c=(force&&(k>=1||letter))?force:ramp[k];
-  if(letter)put(i,c,r,g,b,246,240,220);
+  if(letter)put(i,c,r,g,b,246,240,220,1);
   else put(i,c,r,g,b,r*FGK+FGA,g*FGK+FGA,b*FGK+FGA+4);
 }
 
@@ -646,7 +648,7 @@ let planeLen=.72;
 
 function render(){
   const px=cam.x,py=cam.y,ez=cam.z,cosY=Math.cos(cam.yaw),sinY=Math.sin(cam.yaw);
-  const pl=planeLen,fx=(W/2)/pl,fyS=fx*cw/chh,horizon=H/2+cam.pitch*fyS;
+  const pl=planeLen,fx=(W/2)/pl,fyS=fx*cw/chhR,horizon=HR/2+cam.pitch*fyS;
   aw=.6/fx;ah=.6/fyS;
   for(let sx=0;sx<W;sx++){
     const camX=2*(sx+.5)/W-1;
@@ -655,7 +657,7 @@ function render(){
     const ddx=Math.abs(1/(rdx||1e-9)), ddy=Math.abs(1/(rdy||1e-9));
     const stepX=rdx<0?-1:1, stepY=rdy<0?-1:1;
     let sideX=(rdx<0?px-mx:mx+1-px)*ddx, sideY=(rdy<0?py-my:my+1-py)*ddy;
-    let top=H,tE=1e-4,side=-1,prev=-1;
+    let top=HR,tE=1e-4,side=-1,prev=-1;
     for(let n=0;n<1100;n++){
       let h,m=0,ci=-1;
       if(mx>=0&&my>=0&&mx<N&&my<N){ci=my*N+mx;h=Hm[ci];m=Mt[ci];}
@@ -697,7 +699,7 @@ function render(){
 
 function frameText(){
   const rows=[];
-  for(let y=0;y<H;y++)rows.push(String.fromCharCode.apply(null,chars.subarray(y*W,(y+1)*W)));
+  for(let y=0;y<HR;y++)rows.push(String.fromCharCode.apply(null,chars.subarray(y*W,(y+1)*W)));
   return rows;
 }
 
@@ -709,7 +711,7 @@ const tcv=document.createElement('canvas'), tctx=tcv.getContext('2d');   // the 
 const STACK='ui-monospace,"SF Mono",Menlo,Consolas,"DejaVu Sans Mono","Liberation Mono",monospace';
 const DETAIL=[13,9,6,4,3], DETAIL_NAME=['coarse','medium','fine','extra fine','finest'];
 const DETAIL_CAP=[12000,22000,36000,56000,90000];   // on a big screen this, not the type size, sets the resolution
-let detail=3,ox=0,oy=0,bimg=null,fimg=null,ready=false;
+let detail=3,ox=0,oy=0,bimg=null,fimg=null,ready=false,dch=null,dfg=null;
 const CH=[];for(let i=0;i<128;i++)CH.push(String.fromCharCode(i));
 
 function setup(){
@@ -728,8 +730,11 @@ function setup(){
   }
   ctx.textBaseline='middle';
   ox=(cv.width-W*cw)/2;oy=(cv.height-H*chh)/2;
-  chars=new Uint8Array(W*H);fgPix=new Uint8ClampedArray(W*H*4);bgPix=new Uint8ClampedArray(W*H*4);
-  bcv.width=W;bcv.height=H;bimg=bctx.createImageData(W,H);
+  HR=blocks?H*2:H;chhR=blocks?chh/2:chh;
+  chars=new Uint8Array(W*HR);Lt=new Uint8Array(W*HR);
+  fgPix=new Uint8ClampedArray(W*HR*4);bgPix=new Uint8ClampedArray(W*HR*4);
+  dch=new Uint8Array(W*H);dfg=new Uint8ClampedArray(W*H*4);
+  bcv.width=W;bcv.height=HR;bimg=bctx.createImageData(W,HR);
   fcv.width=W;fcv.height=H;fimg=fctx.createImageData(W,H);
   tcv.width=cv.width;tcv.height=cv.height;tctx.font=ctx.font;tctx.textBaseline='middle';
   planeLen=W*cw>H*chh?.78:.62;
@@ -741,13 +746,26 @@ function draw(){
   if(colour){
     bimg.data.set(bgPix);bctx.putImageData(bimg,0,0);
     ctx.imageSmoothingEnabled=false;
-    ctx.drawImage(bcv,0,0,W,H,ox,oy,W*cw,H*chh);
+    ctx.drawImage(bcv,0,0,W,HR,ox,oy,W*cw,H*chh);      // with blocks on this lands two colours to a row of type
+    let rows,tint;
+    if(blocks){
+      // the shape is carried by the colour alone now, so the only letters left are the shop signs:
+      // a letter in either half of a cell takes the whole cell, which keeps the fascias readable
+      for(let y=0;y<H;y++)for(let x=0;x<W;x++){
+        const d=y*W+x, a=(y*2)*W+x, b=a+W, k=Lt[a]?a:Lt[b]?b:-1, j=d*4;
+        dch[d]=k<0?32:chars[k];
+        if(k<0){dfg[j]=dfg[j+1]=dfg[j+2]=dfg[j+3]=0;}
+        else{const m=k*4;dfg[j]=fgPix[m];dfg[j+1]=fgPix[m+1];dfg[j+2]=fgPix[m+2];dfg[j+3]=255;}
+      }
+      rows=[];
+      for(let y=0;y<H;y++)rows.push(String.fromCharCode.apply(null,dch.subarray(y*W,(y+1)*W)));
+      tint=dfg;
+    }else{rows=frameText();tint=fgPix;}
     // letters: draw every row once in white, then tint the whole sheet with the per-cell colours
-    const rows=frameText();
     tctx.globalCompositeOperation='source-over';tctx.clearRect(0,0,tcv.width,tcv.height);
     tctx.fillStyle='#fff';
     for(let y=0;y<H;y++)tctx.fillText(rows[y],ox,oy+y*chh+chh/2);
-    fimg.data.set(fgPix);fctx.putImageData(fimg,0,0);
+    fimg.data.set(tint);fctx.putImageData(fimg,0,0);
     tctx.globalCompositeOperation='source-in';tctx.imageSmoothingEnabled=false;
     tctx.drawImage(fcv,0,0,W,H,ox,oy,W*cw,H*chh);
     ctx.drawImage(tcv,0,0);
@@ -921,7 +939,18 @@ function setTour(v){tour=v;bTour.setAttribute('aria-pressed',String(v));}
 const takeControl=()=>{if(tour)setTour(false);};
 bTour.setAttribute('aria-pressed',String(tour));
 bTour.onclick=()=>setTour(!tour);
-bColour.onclick=()=>{colour=!colour;bColour.textContent=colour?'Colour on':'Colour off';bColour.setAttribute('aria-pressed',String(colour));};
+bColour.onclick=()=>{
+  colour=!colour;bColour.textContent=colour?'Colour on':'Colour off';bColour.setAttribute('aria-pressed',String(colour));
+  if(!colour&&blocks)setBlocks(false);       // without colour there is nothing for the halves to say
+};
+const bBlocks=document.getElementById('bBlocks');
+function setBlocks(v){
+  blocks=v;
+  bBlocks.textContent=v?'Blocks on':'Blocks off';
+  bBlocks.setAttribute('aria-pressed',String(v));
+  setup();
+}
+bBlocks.onclick=()=>{if(!blocks&&!colour)bColour.onclick();setBlocks(!blocks);};
 const bDay=document.getElementById('bDay');
 bDay.onclick=()=>{setMode(!day);bDay.textContent=day?'Daylight':'Night';bDay.setAttribute('aria-pressed',String(day));};
 bDetail.onclick=()=>{detail=(detail+1)%DETAIL.length;bDetail.textContent='Detail: '+DETAIL_NAME[detail];setup();};
@@ -984,7 +1013,7 @@ function frame(now){
     update(dt);render();draw();
     fpsAcc+=dt;fpsN++;statT+=dt;
     if(statT>.5){
-      statEl.textContent=(W*H).toLocaleString()+' characters a frame, '+Math.round(fpsN/fpsAcc)+' fps.';
+      statEl.textContent=(W*HR).toLocaleString()+(blocks?' half cells':' characters')+' a frame, '+Math.round(fpsN/fpsAcc)+' fps.';
       const x=Math.floor(walker.x),y=Math.floor(walker.y),n=(x>=0&&y>=0&&x<N&&y<N)?Rn[y*N+x]:0;
       if(n&&!tour)streetEl.textContent=names[n]+'.';
       statT=0;fpsAcc=0;fpsN=0;
@@ -994,7 +1023,7 @@ function frame(now){
 }
 if(window.ResizeObserver)new ResizeObserver(setup).observe(stage);else addEventListener('resize',setup);
 setup();
-window.asciiTown={frameText,render,update,cam,walker,buildFromOSM,setMode,groundAt,get spawn(){return spawn;},get size(){return[W,H];},get bg(){return bgPix;},get fg(){return fgPix;},get ch(){return chars;}};
+window.asciiTown={frameText,render,draw,update,cam,walker,buildFromOSM,setMode,groundAt,get spawn(){return spawn;},get size(){return[W,H];},get bg(){return bgPix;},get fg(){return fgPix;},get ch(){return chars;}};
 requestAnimationFrame(frame);
 loadIndex().then(()=>{
   let start=towns.length?towns[0].name:qEl.value;

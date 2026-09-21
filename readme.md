@@ -23,6 +23,12 @@ thumb looks, and Run and Jump sit in the bottom right corner.
 frame may hold, so on a large screen the finest setting draws about seven times as many characters as the
 coarsest, and the footer counts them for you. Drop it a step or two if a walk feels heavy on an older phone.
 
+**Blocks** trades texture for detail. With it on the picture is worked out on twice as many rows and two colours
+are laid in every row of type, the way block characters do it in ANSI art, so vertical detail doubles without the
+type getting smaller. The character texture goes, but shop signs keep their letters and read more clearly than
+before, since a letter in either half of a cell claims the whole cell. It costs about 1.8 times the work a frame
+and needs colour on.
+
 ## Set it up on GitHub Pages
 
 1. Create a new **public** repository on GitHub, for example `walk-any-town`.

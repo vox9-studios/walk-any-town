@@ -88,7 +88,7 @@ a{color:inherit}
 </div>
 <footer>
   <p><span id="street"></span> <span id="hint"></span></p>
-  <p><span id="stat"></span> Map data © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap contributors</a></p>
+  <p><span id="stat"></span> Map data © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap contributors</a>.<span id="ground"></span></p>
 </footer>
 <script>
 (()=>{
@@ -105,13 +105,42 @@ function vnoise(x,y){
 function fbm(x,y,o){let s=0,a=.5,n=0;for(let i=0;i<o;i++){s+=a*vnoise(x,y);n+=a;x=x*2.03+17.1;y=y*2.03+9.7;a*=.5;}return s/n;}
 
 /* ---------- world: a 400 m square of town as one height map (1 cell = 0.5 m) ---------- */
-const N=800, G=2, CELL=.5, CX=N/2, CY=N/2;
-const Hm=new Float32Array(N*N);   // height of every cell
-const Ev=new Float32Array(N*N);   // eaves height, where a cell is a building
-const Mt=new Uint8Array(N*N);     // material
-const Bi=new Uint16Array(N*N);    // which building
-const Rn=new Uint16Array(N*N);    // which street name
+const G=2, CELL=.5, MAXN=1600;    // one cell is half a metre; G is the datum the lowest ground in town sits on
+let N=800, CX=N/2, CY=N/2;
+let Hm,                           // height of every cell
+    Ev,                           // eaves height, where a cell is a building
+    Gr,                           // the ground under it all
+    Mt,                           // material
+    Bi,                           // which building
+    Rn;                           // which street name
+function sizeTo(half){            // half is how far the map data reaches from the middle, in metres
+  const n=Math.min(MAXN,Math.max(400,Math.round(half*2/CELL/8)*8));
+  if(n===N&&Hm)return;
+  N=n;CX=CY=N/2;
+  Hm=new Float32Array(N*N);Ev=new Float32Array(N*N);Gr=new Float32Array(N*N);
+  Mt=new Uint8Array(N*N);Bi=new Uint16Array(N*N);Rn=new Uint16Array(N*N);
+}
+sizeTo(N*CELL/2);
 let bld=[null], names=[''], worldReady=false, spawn={x:CX,y:CY,yaw:-Math.PI/2};
+
+// The ground, read off the grid of heights the build fetched: metres above the town's lowest point,
+// in tenths, running west to east along each row and south to north down the rows.
+function ground(ele){
+  if(!ele||!ele.v||!(ele.n>1)){Gr.fill(G);return 0;}
+  const n=ele.n, v=ele.v, s=(n-1)/(N-1), k=.1/CELL;
+  let top=0;
+  for(let y=0;y<N;y++){
+    const gy=(N-1-y)*s, j0=Math.min(n-2,Math.floor(gy)), fy=gy-j0, r0=j0*n, r1=r0+n;
+    for(let x=0;x<N;x++){
+      const gx=x*s, i0=Math.min(n-2,Math.floor(gx)), fx=gx-i0;
+      const a=v[r0+i0], b=v[r0+i0+1], c=v[r1+i0], e=v[r1+i0+1];
+      const lo=a+(b-a)*fx, hi=c+(e-c)*fx, h=lo+(hi-lo)*fy;
+      if(h>top)top=h;
+      Gr[y*N+x]=G+h*k;
+    }
+  }
+  return top*.1;
+}
 // materials: 0 grass 1 stone 2 paving 3 water 4 tree 5 asphalt 6 brick 7 render 8 timber frame 9 dirt 10 concrete
 const MAT=[[96,150,62],[172,166,150],[176,170,158],[34,74,112],[48,104,54],[78,80,86],[170,98,72],[228,220,200],[234,228,212],[150,122,84],[152,152,148]];
 const RAMPS=[".,:;vwVW",".:;rtIHM#",".,:;=xXH"," .-~~=zZ",".:^itAY#",".,:;-=+x",".:;=rtHM#",".,:;ilIL",".,:;ilIL",".,:oaeSB",".,:;=+oX"]
@@ -158,6 +187,14 @@ function parseCol(v){                  // building:colour and roof:colour, as a 
   return COLNAME[t.replace(/[^a-z]/g,'')]||null;
 }
 const ROADW={motorway:10,trunk:10,primary:9,secondary:8,tertiary:7,residential:6,unclassified:6,living_street:5,service:4,pedestrian:6,footway:2,path:2,cycleway:2.5,steps:2,track:3,bridleway:2};
+const SURF={asphalt:5,concrete:5,paved:5,chipseal:5,paving_stones:2,sett:1,cobblestone:1,unhewn_cobblestone:1,
+  gravel:9,fine_gravel:9,compacted:9,ground:9,dirt:9,earth:9,mud:9,sand:9,grass:0,wood:8};
+function roadWidth(t){                  // metres across, from the map where it says, else by the kind of road
+  const w=parseFloat(t.width);if(w>0)return Math.min(34,w);
+  const ln=parseInt(t.lanes,10);
+  if(ln>0)return Math.min(34,ln*(/^(motorway|trunk|primary)$/.test(t.highway)?3.65:3.05)+(t.oneway==='yes'?.5:1));
+  return ROADW[t.highway];
+}
 
 function fillPoly(rings,fn){           // even-odd scanline fill, holes included
   let y0=N,y1=0;
@@ -191,7 +228,9 @@ function fillLine(pts,w,fn){           // a path with thickness w, in cells
 }
 
 function buildFromOSM(data,lat0,lon0){
-  Hm.fill(G);Ev.fill(0);Mt.fill(0);Bi.fill(0);Rn.fill(0);bld=[null];names=[''];
+  sizeTo(data.half>0?data.half:N*CELL/2);
+  const fall=ground(data.ele);
+  Hm.set(Gr);Ev.fill(0);Mt.fill(0);Bi.fill(0);Rn.fill(0);bld=[null];names=[''];
   SUN.map=MOON.map=null;
   const kx=Math.cos(lat0*Math.PI/180)*111320/CELL, ky=110540/CELL;
   const P=g=>[(g.lon-lon0)*kx+CX,-(g.lat-lat0)*ky+CY];
@@ -213,17 +252,17 @@ function buildFromOSM(data,lat0,lon0){
     else if(t.natural==='wood'||t.landuse==='forest')woods.push(rings);
     else if(t.amenity==='parking')parking.push(rings);
   }
-  const set=(m,h)=>c=>{if(!Bi[c]){Mt[c]=m;Hm[c]=h;}};
-  for(const r of parking)fillPoly(r,set(5,G));
-  for(const r of water)fillPoly(r,set(3,G-1));
-  for(const s of streams)fillLine(s.pts,M(s.w),set(3,G-1));
+  const set=(m,dh)=>c=>{if(!Bi[c]){Mt[c]=m;Hm[c]=Gr[c]+dh;}};
+  for(const r of parking)fillPoly(r,set(5,0));
+  for(const r of water)fillPoly(r,set(3,-1));
+  for(const s of streams)fillLine(s.pts,M(s.w),set(3,-1));
   // streets: pavements first, then footpaths, then the carriageway on top
   let best=1e9;
   const nameIdx=n=>{if(!n)return 0;let i=names.indexOf(n);if(i<0){i=names.length;names.push(n);}return i;};
   const car=r=>!/^(pedestrian|footway|path|cycleway|steps|track|bridleway)$/.test(r.t.highway);
   for(const r of roads){
-    const ni=nameIdx(r.t.name),w=M(ROADW[r.t.highway]);
-    if(car(r)&&r.t.highway!=='service')fillLine(r.pts,w+M(4.4),c=>{if(Mt[c]!==5||Rn[c]===0){Mt[c]=2;Hm[c]=G+.3;}if(ni)Rn[c]=ni;});
+    const ni=nameIdx(r.t.name),w=M(roadWidth(r.t));
+    if(car(r)&&r.t.highway!=='service')fillLine(r.pts,w+M(4.4),c=>{if(Mt[c]!==5||Rn[c]===0){Mt[c]=2;Hm[c]=Gr[c]+.3;}if(ni)Rn[c]=ni;});
     for(let i=0;i+1<r.pts.length&&ni;i++){            // remember the named street nearest the centre, to face along it
       const a=r.pts[i],b=r.pts[i+1],dx=b[0]-a[0],dy=b[1]-a[1];
       let t=((CX-a[0])*dx+(CY-a[1])*dy)/(dx*dx+dy*dy||1e-9);t=t<0?0:t>1?1:t;
@@ -231,9 +270,15 @@ function buildFromOSM(data,lat0,lon0){
       if(dd<best){best=dd;spawn={x:a[0]+dx*t,y:a[1]+dy*t,yaw:Math.atan2(dy,dx)};}
     }
   }
-  for(const r of plazas)fillPoly(r,set(2,G+.3));
-  for(const r of roads)if(!car(r)){const ni=nameIdx(r.t.name),m=r.t.highway==='track'?9:2;fillLine(r.pts,M(ROADW[r.t.highway]),c=>{if(Mt[c]!==5){Mt[c]=m;Hm[c]=G+.3;if(ni)Rn[c]=ni;}});}
-  for(const r of roads)if(car(r)){const ni=nameIdx(r.t.name);fillLine(r.pts,M(ROADW[r.t.highway]),c=>{Mt[c]=5;Hm[c]=G;if(ni)Rn[c]=ni;});}
+  for(const r of plazas)fillPoly(r,set(2,.3));
+  for(const r of roads)if(!car(r)){
+    const ni=nameIdx(r.t.name),m=SURF[r.t.surface]!==undefined?SURF[r.t.surface]:r.t.highway==='track'?9:2;
+    fillLine(r.pts,M(roadWidth(r.t)),c=>{if(Mt[c]!==5){Mt[c]=m;Hm[c]=Gr[c]+.3;if(ni)Rn[c]=ni;}});
+  }
+  for(const r of roads)if(car(r)){
+    const ni=nameIdx(r.t.name),m=SURF[r.t.surface]!==undefined?SURF[r.t.surface]:5;
+    fillLine(r.pts,M(roadWidth(r.t)),c=>{Mt[c]=m;Hm[c]=Gr[c];if(ni)Rn[c]=ni;});
+  }
   // buildings: what the map says each one is made of, how tall it stands, and what shape its roof takes
   for(const b of buildings){
     const t=b.t,hs=hash2(b.id%100003,7),hs2=hash2(b.id%100003,19),hs3=hash2(b.id%100003,41);
@@ -250,7 +295,11 @@ function buildFromOSM(data,lat0,lon0){
     let hm=parseFloat(t.height), lv=parseFloat(t['building:levels'])||0;
     if(!(hm>0))hm=lv>0?lv*3+.6:small?2.6:church?12:house?(hs<.35?8.2:6.2):big?4+Math.floor(hs*3)*3.2:6+Math.floor(hs*2.2)*3;
     if(!lv)lv=Math.max(1,Math.round((hm-.6)/3));
-    const top=G+Math.max(2.4,hm)/CELL, wall=top-G;
+    if(church)lv=1;                                       // one tall space, with one row of tall windows
+    let gsum=0,gn=0;
+    fillPoly(b.rings,c=>{gsum+=Gr[c];gn++;});
+    const base=gn?gsum/gn:G;
+    const top=base+Math.max(2.4,hm)/CELL, wall=top-base;
     // roof: flat behind a parapet, hipped, or a ridge running along the longer side
     const rs=(t['roof:shape']||'').toLowerCase();
     const square=Math.min(fw,fd)/Math.max(fw,fd)>.82;
@@ -261,21 +310,22 @@ function buildFromOSM(data,lat0,lon0){
     const slope=church?1.1:house?.85:small?.4:.62;
     const rh=parseFloat(t['roof:height']), rlv=parseFloat(t['roof:levels'])||0;
     const span=Math.min(fw,fd)/2;
-    const cap=rh>0?rh/CELL:rlv>0?rlv*5.2:Math.min(span*slope,church?24:house?11:8);
+    const cap=rh>0?rh/CELL:rlv>0?rlv*5.2:Math.min(span*slope,church?14:house?11:8);
     let ri=ROOFMAT[(t['roof:material']||'').toLowerCase()];
     if(ri===undefined)ri=prof===0?3:church?1:hs2<.5?0:1;
     let style=WALLMAT[(t['building:material']||t['building:facade:material']||'').toLowerCase()];
     if(style===undefined)style=church?1:small?7:(big&&lv>=4)?10:hs2<.62?6:hs2<.88?7:8;
     const col=parseCol(t['building:colour']);
     const shop=!!(t.shop||/retail|commercial|kiosk/.test(kind)||/cafe|restaurant|pub|bank|fast_food|bar|pharmacy|post_office|cinema|theatre/.test(t.amenity||''));
-    const fh=Math.min(8,Math.max(4.6,wall/lv));           // one storey, in cells
+    const fh=church?wall:Math.min(8,Math.max(4.6,wall/lv));   // one storey, in cells
     const bayOf=(len,want)=>len/Math.max(1,Math.round(len/want));
-    const want=shop?8:house?6.4:7;                        // a window bay every three or four metres
+    const want=church?9:shop?8:house?6.4:7;               // a window bay every three or four metres
     const info={
       style, tint:col?.95+.1*hs2:.86+.24*hs2, col, roofCol:parseCol(t['roof:colour'])||ROOF[ri],
-      prof, slope, cap, church, small, house, shop,
+      prof, slope, cap, church, small, house, shop, base, wall,
       x0, y0, x1, y1, wx:fw, wy:fd, bayX:bayOf(fw,want), bayY:bayOf(fd,want),
-      fh, g0:Math.min(wall,shop?fh*1.15:fh),              // shops carry a taller ground floor
+      fh, g0:church?wall:Math.min(wall,shop?fh*1.15:fh),  // shops carry a taller ground floor
+      tower:0,
       dEvery:house?2:shop?1:3, dBay:Math.floor(hs3*3)%(house?2:3),
       sign:'', signCol:TRADE[trade]||SIGNS[Math.floor(hs2*4.99)]
     };
@@ -335,6 +385,29 @@ function buildFromOSM(data,lat0,lon0){
       Hm[i]+=r<0?0:r<B.cap?r:B.cap;
     }
   }
+  for(let i=1;i<bld.length;i++){                        // an English parish church carries its tower at the west end
+    const B=bld[i];
+    if(!B.church)continue;
+    const alongX=B.wx>=B.wy;                            // the nave runs east to west, so the tower sits at the low-x end
+    const side=Math.min(Math.max(8,Math.min(B.wx,B.wy)*.72),22);
+    const sx=alongX?B.x0+.6:(B.x0+B.x1-side)/2, sy=alongX?(B.y0+B.y1-side)/2:B.y0+.6;
+    const fx0=Math.ceil(sx),fx1=Math.floor(sx+side),fy0=Math.ceil(sy),fy1=Math.floor(sy+side);
+    const top=B.base+Math.max(B.wall*2.1,26);
+    let placed=0;
+    for(let y=fy0;y<=fy1;y++){
+      if(y<0||y>=N)continue;
+      for(let x=fx0;x<=fx1;x++){
+        if(x<0||x>=N)continue;
+        const c=y*N+x;if(Bi[c]!==i)continue;
+        const ex=(x===fx0||x===fx1), ey=(y===fy0||y===fy1);
+        // pinnacles at the corners, battlements along the parapet
+        Hm[c]=(ex&&ey)?top+3.6:(ex||ey)?(((x>>1)+(y>>1))&1?top+.7:top+2):top;
+        Ev[c]=Hm[c];                                    // stone all the way up, not roof
+        placed++;
+      }
+    }
+    if(placed>6)B.tower=top;
+  }
   for(let i=1;i<bld.length;i++){                        // chimney stacks, where a pitched roof is big enough for one
     const B=bld[i];
     if(B.prof<2||B.church||B.small||Math.min(B.wx,B.wy)<7)continue;
@@ -355,9 +428,10 @@ function buildFromOSM(data,lat0,lon0){
   const tree=(tx,ty,street)=>{
     const rad=5+rnd()*4,th=12+rnd()*10,cx=Math.floor(tx),cy=Math.floor(ty);
     if(cx<8||cy<8||cx>=N-8||cy>=N-8||Mt[cy*N+cx]!==0)return;
+    const gb=Gr[cy*N+cx];
     for(let y=Math.floor(ty-rad);y<=ty+rad;y++)for(let x=Math.floor(tx-rad);x<=tx+rad;x++){
       const dd=Math.hypot(x+.5-tx,y+.5-ty),c=y*N+x;if(dd>=rad||Bi[c]||!(Mt[c]===0||Mt[c]===4||(street&&Mt[c]===2)))continue;
-      const hh=G+th*Math.sqrt(1-dd*dd/(rad*rad))*(.85+.3*hash2(x,y));
+      const hh=gb+th*Math.sqrt(1-dd*dd/(rad*rad))*(.85+.3*hash2(x,y));
       if(hh>Hm[c]){Hm[c]=hh;Mt[c]=4;}
     }
   };
@@ -372,7 +446,7 @@ function buildFromOSM(data,lat0,lon0){
   }
   spawn.x=sx+.5;spawn.y=sy+.5;
   worldReady=true;
-  return {buildings:buildings.length,roads:roads.length};
+  return {buildings:buildings.length,roads:roads.length,fall};
 }
 
 // cast shadows: for every cell, the height below which the light is blocked
@@ -427,7 +501,7 @@ function shade(i,m,isTop,wx,wy,wz,nx,ny,d,li,ci){
       if(nx!==0){u=wy;len=B.wy;bay=B.bayY;u0=nx<0?B.y0:-B.y1;}
       else{u=wx;len=B.wx;bay=B.bayX;u0=ny>0?B.x0:-B.x1;}
       if(!(ny>0||nx<0))u=-u;
-      const uu=u-u0, zz=wz-G, row=Math.floor(zz);               // along the frontage from one corner, and up from the pavement
+      const uu=u-u0, zz=wz-B.base, row=Math.floor(zz);               // along the frontage from one corner, and up from the pavement
       let fl,fz;                                                // which storey, and how far up that storey we are
       if(zz<B.g0){fl=0;fz=zz/B.g0;}else{const q=(zz-B.g0)/B.fh;fl=1+Math.floor(q);fz=q-Math.floor(q);}
       const nb=Math.floor(uu/bay), wu=uu/bay-nb;                // which window bay, and how far across it
@@ -439,7 +513,20 @@ function shade(i,m,isTop,wx,wy,wz,nx,ny,d,li,ci){
       const cx=Math.abs(wu-.5), doorBay=((nb%B.dEvery)+B.dEvery)%B.dEvery===B.dBay;
       let glass=false,door=false,board=false;
       if(!(B.shop&&fl===0)&&zz<.5){tex*=.74;force=45;}          // a plinth course where the wall meets the pavement
-      if(B.shop&&fl===0){                                       // a shopfront: fascia board, glazing, stall riser, doorway
+      if(B.church){                                             // lancet windows, and a tower that is mostly blank stone
+        const tower=B.tower>0&&Ev[ci]>B.base+B.wall+2;
+        if(tower){
+          const tz=(wz-B.base)/(B.tower-B.base);
+          if(zz%9<.4){tex*=.74;force=45;}                         // a string course every four and a half metres
+          if(tz>.74&&tz<.9&&cx<.13){tex=.2;force=(row&1)?61:45;}  // belfry louvres
+          else if(tz<.22&&cx<.1&&doorBay)door=true;
+        }else{
+          const t2=(fz-.24)/.62, e2=(t2-.66)/.34;
+          const hw=t2<.66?.19:.19*Math.sqrt(Math.max(0,1-e2*e2));  // the head of the window comes to a point
+          if(fz>.24&&fz<.86&&cx<hw)glass=true;
+          else if(fz>.17&&fz<=.24&&cx<.24){tex*=.78;force=61;}     // the sill course under it
+        }
+      }else if(B.shop&&fl===0){                                   // a shopfront: fascia board, glazing, stall riser, doorway
         if(fz>.78){
           base=B.signCol;tex=1;force=0;board=true;
           const sg=B.sign,k=Math.floor(uu-(len-sg.length)/2);   // the name reads centred on the frontage
@@ -569,8 +656,9 @@ function render(){
     let sideX=(rdx<0?px-mx:mx+1-px)*ddx, sideY=(rdy<0?py-my:my+1-py)*ddy;
     let top=H,tE=1e-4,side=-1,prev=-1;
     for(let n=0;n<1100;n++){
-      let h=G,m=0,ci=-1;
+      let h,m=0,ci=-1;
       if(mx>=0&&my>=0&&mx<N&&my<N){ci=my*N+mx;h=Hm[ci];m=Mt[ci];}
+      else h=Gr[(my<0?0:my>=N?N-1:my)*N+(mx<0?0:mx>=N?N-1:mx)];
       if(side>=0){                                           // the wall face we just hit
         let y0=Math.round(horizon-(h-ez)*fyS/tE);if(y0<0)y0=0;
         if(y0<top){
@@ -669,10 +757,36 @@ function draw(){
 }
 
 /* ---------- finding a place and fetching its map ---------- */
-const msgEl=document.getElementById('msg'), qEl=document.getElementById('q');
+const msgEl=document.getElementById('msg'), qEl=document.getElementById('q'), hintEl=document.getElementById('hint');
+const groundEl=document.getElementById('ground');
+const DEMNAME={eudem25m:'EU-DEM, produced using Copernicus data funded by the European Union',
+  mapzen:'Mapzen terrain tiles', srtm30m:'NASA SRTM', srtm90m:'NASA SRTM', aster30m:'NASA ASTER GDEM'};
 const say=t=>{msgEl.textContent=t;};
 const OVERPASS=['https://overpass.private.coffee/api/interpreter','https://overpass.kumi.systems/api/interpreter','https://overpass-api.de/api/interpreter'];
 let busy=false, towns=[];
+const ELEVATION='https://api.opentopodata.org/v1', DEM=['eudem25m','mapzen','srtm30m'];
+async function liveTerrain(lat,lon,half){        // best effort: without it the town is simply flat
+  const n=17, dLat=half/110540, dLon=half/(111320*Math.cos(lat*Math.PI/180)), pts=[];
+  for(let j=0;j<n;j++)for(let i=0;i<n;i++)
+    pts.push((lat+((j/(n-1))*2-1)*dLat).toFixed(6)+','+(lon+((i/(n-1))*2-1)*dLon).toFixed(6));
+  const until=Date.now()+9000;
+  for(const set of DEM){
+    try{
+      const v=[];
+      for(let k=0;k<pts.length;k+=100){
+        if(Date.now()>until)throw new Error('taking too long');
+        const r=await fetch(ELEVATION+'/'+set+'?locations='+pts.slice(k,k+100).join('|'));
+        const j=await r.json();
+        if(!r.ok||!j.results)throw new Error('no answer');
+        for(const q of j.results){if(typeof q.elevation!=='number')throw new Error('no cover');v.push(q.elevation);}
+        await new Promise(r2=>setTimeout(r2,1100));
+      }
+      const min=Math.min.apply(null,v);
+      return {n,base:+min.toFixed(1),dataset:set,v:v.map(e=>Math.round((e-min)*10))};
+    }catch(e){}
+  }
+  return null;
+}
 const slug=s=>s.toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'');
 async function loadIndex(){                       // towns prepared ahead of time live beside this page, in data/
   try{
@@ -702,7 +816,7 @@ async function loadPlace(q){
       if(!r.ok)throw new Error('status '+r.status);geo=await r.json();
     }catch(e){throw new Error('"'+q+'" is not one of the towns prepared for this site, and the live place search could not be reached. Add it to towns.txt in the site\'s repository and it will be built in.');}
     if(!geo.length)throw new Error('No place called "'+q+'" was found. Try adding the town or country, such as "High Street, East Grinstead, UK".');
-    const lat=+geo[0].lat,lon=+geo[0].lon,half=N*CELL/2;
+    const lat=+geo[0].lat,lon=+geo[0].lon,half=200;
     const dLat=half/110540,dLon=half/(111320*Math.cos(lat*Math.PI/180));
     const bb='('+(lat-dLat)+','+(lon-dLon)+','+(lat+dLat)+','+(lon+dLon)+')';
     const ql='[out:json][timeout:25];('+['way[building]','relation[building]','way[highway]','way[natural=water]','relation[natural=water]','way[natural=wood]',
@@ -714,6 +828,9 @@ async function loadPlace(q){
         if(r.ok){data=await r.json();break;}}catch(e){}
     }
     if(!data)throw new Error('"'+q+'" is not one of the towns prepared for this site, and the live map servers turned the request away. Add it to towns.txt in the site\'s repository and it will be built in.');
+    data.half=half;
+    say('Reading the lie of the land');
+    data.ele=await liveTerrain(lat,lon,half);
     await enter(data,lat,lon);
     try{history.replaceState(null,'','#'+encodeURIComponent(q));}catch(e){}
   }catch(e){worldReady=false;say(e.message);}
@@ -724,8 +841,10 @@ async function enter(data,lat,lon){
   await new Promise(r=>setTimeout(r,30));
   const info=buildFromOSM(data,lat,lon);
   if(!info.buildings&&!info.roads)throw new Error('There are no buildings or streets in this map data. Try a nearby town.');
+  hintEl.textContent=(info.fall>4?'The ground here rises and falls '+Math.round(info.fall)+' m. ':'')+baseHint;
+  groundEl.textContent=data.ele&&DEMNAME[data.ele.dataset]?' Ground heights from '+DEMNAME[data.ele.dataset]+'.':'';
   setMode(day);
-  Object.assign(walker,{x:spawn.x,y:spawn.y,feet:G,vz:0,yaw:spawn.yaw,pitch:0});
+  Object.assign(walker,{x:spawn.x,y:spawn.y,feet:groundAt(spawn.x,spawn.y),vz:0,yaw:spawn.yaw,pitch:0});
   say('');
 }
 // offline route: a saved Overpass JSON file, centred on the middle of whatever it contains
@@ -740,7 +859,9 @@ fileEl.addEventListener('change',async()=>{
     const see=g=>{if(g.lat<a)a=g.lat;if(g.lat>b)b=g.lat;if(g.lon<c)c=g.lon;if(g.lon>d)d=g.lon;};
     for(const e of data.elements||[]){if(e.geometry)e.geometry.forEach(see);else if(e.lat!==undefined)see(e);(e.members||[]).forEach(m=>m.geometry&&m.geometry.forEach(see));}
     if(a>b)throw new Error('That file has no map shapes in it. It needs to be Overpass JSON saved with "out geom".');
-    await enter(data,(a+b)/2,(c+d)/2);
+    const lat=(a+b)/2, lon=(c+d)/2;
+    if(!(data.half>0))data.half=Math.max(100,Math.min(400,Math.max((b-a)*110540,(d-c)*111320*Math.cos(lat*Math.PI/180))/2));
+    await enter(data,lat,lon);
   }catch(e){worldReady=false;say(e.name==='SyntaxError'?'That file is not valid JSON.':e.message);}
   busy=false;fileEl.value='';
 });
@@ -756,13 +877,18 @@ const WALK=11.25, RUN=18.75;        // cells a second, and a cell is half a metr
 let runLock=false;
 const running=()=>runLock||!!(keys.ShiftLeft||keys.ShiftRight);
 
-const hAt=(x,y)=>{const cx=Math.floor(x),cy=Math.floor(y);return(cx<0||cy<0||cx>=N||cy>=N)?G:Hm[cy*N+cx];};
+const hAt=(x,y)=>{
+  let cx=Math.floor(x),cy=Math.floor(y);
+  if(cx<0)cx=0;else if(cx>=N)cx=N-1;
+  if(cy<0)cy=0;else if(cy>=N)cy=N-1;
+  return Hm[cy*N+cx];
+};
 const groundAt=(x,y)=>Math.max(hAt(x-.35,y-.35),hAt(x+.35,y-.35),hAt(x-.35,y+.35),hAt(x+.35,y+.35));
 
 function update(dt){
   if(tour){
     tourA+=dt*.07;
-    cam.x=spawn.x+150*Math.cos(tourA);cam.y=spawn.y+150*Math.sin(tourA);cam.z=G+90;
+    cam.x=spawn.x+150*Math.cos(tourA);cam.y=spawn.y+150*Math.sin(tourA);cam.z=groundAt(cam.x,cam.y)+80;
     cam.yaw=Math.atan2(spawn.y-cam.y,spawn.x-cam.x);cam.pitch=-.45;
     return;
   }
@@ -778,7 +904,7 @@ function update(dt){
   if(groundAt(w.x,ny)<=w.feet+1.15)w.y=ny;
   w.x=Math.min(N-2,Math.max(2,w.x));w.y=Math.min(N-2,Math.max(2,w.y));
   const gr=groundAt(w.x,w.y);
-  if(w.feet<=gr+.02){
+  if(w.vz<=0&&w.feet<=gr+.6){
     w.feet+=(gr-w.feet)*Math.min(1,dt*16);w.vz=0;
     if(wantJump||keys.Space){w.vz=11;w.feet+=.05;}
   }else{
@@ -844,7 +970,8 @@ cv.addEventListener('pointerup',endPtr);cv.addEventListener('pointercancel',endP
 cv.addEventListener('contextmenu',e=>e.preventDefault());
 
 const coarse=window.matchMedia&&matchMedia('(pointer:coarse)').matches;
-document.getElementById('hint').textContent=coarse?'Left thumb walks, right thumb looks; Run and Jump are bottom right.':'W A S D to walk, drag to look, space to jump, shift or the Run button to run.';
+const baseHint=coarse?'Left thumb walks, right thumb looks; Run and Jump are bottom right.':'W A S D to walk, drag to look, space to jump, shift or the Run button to run.';
+hintEl.textContent=baseHint;
 
 /* ---------- loop ---------- */
 const statEl=document.getElementById('stat'),streetEl=document.getElementById('street');
@@ -865,7 +992,7 @@ function frame(now){
 }
 if(window.ResizeObserver)new ResizeObserver(setup).observe(stage);else addEventListener('resize',setup);
 setup();
-window.asciiTown={frameText,render,update,cam,walker,buildFromOSM,setMode,get spawn(){return spawn;},get size(){return[W,H];},get bg(){return bgPix;},get fg(){return fgPix;},get ch(){return chars;}};
+window.asciiTown={frameText,render,update,cam,walker,buildFromOSM,setMode,groundAt,get spawn(){return spawn;},get size(){return[W,H];},get bg(){return bgPix;},get fg(){return fgPix;},get ch(){return chars;}};
 requestAnimationFrame(frame);
 loadIndex().then(()=>{
   let start=towns.length?towns[0].name:qEl.value;

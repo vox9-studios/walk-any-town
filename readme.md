@@ -1,7 +1,7 @@
 # Walk any town, in letters
 
 A first-person walk through real streets, drawn entirely with text characters. One HTML page, no libraries, no build step.
-Streets and buildings come from OpenStreetMap.
+Streets, buildings and the shape of the ground come from open map data.
 
 ## How the site works
 
@@ -39,18 +39,51 @@ Edit `towns.txt`, add a line such as `Market Place, Hexham, UK`, and commit. The
 town appears in the search box suggestions. Link straight to a town with its address ending, for example
 `.../#high-street-east-grinstead-uk`.
 
+A line can also say how far the square should reach from its centre, and where that centre should be:
+
+```
+Market Place, Hexham, UK | 300
+High Street, East Grinstead, UK | 300 | 51.124221,-0.008164
+```
+
+The reach is in metres, between 100 and 400, and defaults to 200. A centre of your own is how you hold two
+streets in one square when neither of them sits in the middle: put the centre between them and widen the reach
+until both are inside. Changing either value rebuilds that town by itself on the next commit.
+
+A wider square is not free. The page works at half a metre to the cell, so 300 m reaches 1200 cells across and
+takes a little under a second to build, against about a fifth of a second at 200 m. Phones manage 300 m; go much
+past that and the wait before the first frame starts to show.
+
 To refresh a town after the map has been improved, delete its file in `data/` and commit.
+
+## Making a town look more like itself
+
+Everything the page draws comes from tags on OpenStreetMap, so the surest way to improve a street is to improve
+its map. The page reads, and falls back sensibly without:
+
+| What it draws | Tags it reads |
+| --- | --- |
+| Walls | `building:material`, `building:facade:material`, `building:colour` |
+| Roofs | `roof:shape`, `roof:material`, `roof:colour`, `roof:height`, `roof:levels` |
+| Storeys | `building:levels`, `height` |
+| Shopfronts | `shop`, `amenity`, `name` |
+| Streets | `width`, `lanes`, `oneway`, `surface`, `highway` |
+
+Where a tag is missing the page guesses from the kind of building and the shape of its footprint: a terrace of
+houses gets ridged roofs and chimneys, a deep commercial block gets a flat roof behind a parapet, and a
+`place_of_worship` gets a battlemented west tower with pinnacles and tall pointed windows. Those are rules, not
+records, so a building with no tags is a plausible building rather than the real one. Adding
+`building:material=brick` to your own street in OpenStreetMap does more for the view than any change to this page.
 
 ## Good to know
 
-- Each town is a 400 m square. The ground is flat; real slopes would need elevation data added.
-- Buildings follow what the map actually records: `building:material` and `building:colour` choose the walls,
-  `roof:shape`, `roof:material` and `roof:colour` the roof, `building:levels` and `height` the storeys, and the
-  shop or amenity the colour of the fascia. Where a tag is missing the page falls back to rules drawn from the
-  kind of building and the shape of its footprint, so a terrace of houses gets ridged roofs and chimneys while a
-  deep commercial block gets a flat one behind a parapet. Window bays, doors and signs are set out from each
-  building's own frontage, so streets are recognisable by layout, size and shop names rather than exact frontages.
-- Towns fetched before this change kept fewer tags. Delete the town's file in `data/` and commit to pick the rest up.
-- Map data © OpenStreetMap contributors, under the Open Database Licence. Keep the credit line in the page footer.
-- The public OpenStreetMap servers are shared and free. This setup only touches them when you add a town,
-  never when someone visits, which keeps the site within their usage rules.
+- The ground is real. Each town's build samples a grid of ground heights and the page lays the streets and
+  buildings on it, so a town on a hill reads as one. East Grinstead falls 28 m across its square, which is why
+  the old High Street stands well above the shops on London Road.
+- Buildings stand level on the mean ground under their own footprint, so a house on a slope shows more wall on
+  its downhill side, as it does in life.
+- Map data © OpenStreetMap contributors, under the Open Database Licence. Ground heights come from
+  [OpenTopoData](https://www.opentopodata.org/), which serves EU-DEM (produced using Copernicus data funded by
+  the European Union), Mapzen terrain tiles and NASA SRTM. Keep both credits in the page footer.
+- The public map and elevation servers are shared and free. This setup only touches them when you add or resize
+  a town, never when someone visits, which keeps the site within their usage rules.

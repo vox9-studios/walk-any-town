@@ -1,5 +1,13 @@
-# One place per line. Each becomes a walkable 400 m square, centred on the place.
+# One place per line. Each becomes a walkable square, centred on the place.
 # Be specific: "High Street, East Grinstead, UK" works better than "East Grinstead".
+#
+# A line may also carry, after a | , how far the square reaches from its centre in metres
+# (100 to 400, the default is 200), and a centre of your own as lat,lon. A centre of your own
+# is the way to hold two streets in one square when neither sits in the middle.
+#
+#   Market Place, Hexham, UK | 300
+#   High Street, Lewes, UK | 250 | 50.8736,0.0088
+#
 # Lines starting with # are ignored. After editing, commit: the site rebuilds itself.
 
-High Street, East Grinstead, UK
+High Street, East Grinstead, UK | 300 | 51.124221,-0.008164

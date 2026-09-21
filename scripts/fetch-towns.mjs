@@ -3,23 +3,41 @@
 import { readFile, writeFile, mkdir, access } from 'node:fs/promises';
 
 const UA = `walk-any-town (https://github.com/${process.env.GITHUB_REPOSITORY || 'unknown/unknown'})`;
-const HALF_M = 200;   // half the side of the square, in metres (the site's map is 400 m across)
 const OVERPASS = [
   'https://overpass-api.de/api/interpreter',
   'https://overpass.private.coffee/api/interpreter',
   'https://overpass.kumi.systems/api/interpreter',
 ];
+const ELEVATION = 'https://api.opentopodata.org/v1';
+const DEM = ['eudem25m', 'mapzen', 'srtm30m'];   // the first that covers the whole square wins
+const ELE_N = 33;                                // ground is sampled on a 33 by 33 grid
+const DEFAULT_HALF = 200;                        // half the side of the square, in metres
+const MAX_HALF = 400;                            // the page draws half a metre to a cell, so this is 1600 cells across
+
 const FILTERS = ['way[building]', 'relation[building]', 'way[highway]', 'way[natural=water]', 'relation[natural=water]',
   'way[natural=wood]', 'way[waterway]', 'way[landuse=forest]', 'way[amenity=parking]', 'node[natural=tree]',
   'node[shop][name]', 'node[amenity][name]'];
 const KEEP = ['building', 'building:levels', 'building:material', 'building:facade:material', 'building:colour',
-  'height', 'roof:shape', 'roof:levels', 'roof:height', 'roof:material', 'roof:colour',
-  'highway', 'name', 'area', 'tunnel', 'natural', 'waterway', 'landuse', 'amenity', 'shop', 'tourism', 'historic'];
+  'building:part', 'height', 'roof:shape', 'roof:levels', 'roof:height', 'roof:material', 'roof:colour',
+  'highway', 'name', 'area', 'tunnel', 'bridge', 'layer', 'lanes', 'width', 'oneway', 'surface', 'sidewalk',
+  'natural', 'waterway', 'landuse', 'amenity', 'shop', 'tourism', 'historic', 'man_made', 'tower:type'];
 
 const slug = s => s.toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const exists = p => access(p).then(() => true, () => false);
 const round = g => ({ lat: +g.lat.toFixed(6), lon: +g.lon.toFixed(6) });
+
+// A line is "Place", and may carry " | half-metres" and " | lat,lon" to widen or recentre the square.
+function readLine(line) {
+  const parts = line.split('|').map(s => s.trim());
+  const town = { name: parts[0], half: DEFAULT_HALF, centre: null };
+  for (const p of parts.slice(1)) {
+    const c = p.match(/^(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)$/);
+    if (c) town.centre = { lat: +c[1], lon: +c[2] };
+    else if (/^\d+$/.test(p)) town.half = Math.min(MAX_HALF, Math.max(100, +p));
+  }
+  return town;
+}
 
 async function geocode(q) {
   const r = await fetch('https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&q=' + encodeURIComponent(q),
@@ -30,10 +48,10 @@ async function geocode(q) {
   return { lat: +hit.lat, lon: +hit.lon };
 }
 
-async function overpass(lat, lon) {
-  const dLat = HALF_M / 110540, dLon = HALF_M / (111320 * Math.cos(lat * Math.PI / 180));
+async function overpass(lat, lon, half) {
+  const dLat = half / 110540, dLon = half / (111320 * Math.cos(lat * Math.PI / 180));
   const bb = `(${lat - dLat},${lon - dLon},${lat + dLat},${lon + dLon})`;
-  const ql = '[out:json][timeout:60];(' + FILTERS.map(f => f + bb + ';').join('') + ');out geom;';
+  const ql = '[out:json][timeout:90];(' + FILTERS.map(f => f + bb + ';').join('') + ');out geom;';
   let last = 'no server tried';
   for (const url of OVERPASS) {
     try {
@@ -42,12 +60,45 @@ async function overpass(lat, lon) {
         headers: { 'User-Agent': UA, 'Content-Type': 'application/x-www-form-urlencoded' },
         body: 'data=' + encodeURIComponent(ql),
       });
-      if (r.ok) return (await r.json()).elements || [];
-      last = url + ' answered ' + r.status;
+      const body = await r.text();
+      if (r.ok && body.trimStart().startsWith('{')) return JSON.parse(body).elements || [];
+      last = url + (r.ok ? ' was busy' : ' answered ' + r.status);
     } catch (e) { last = url + ': ' + e.message; }
     await sleep(2000);
   }
   throw new Error(last);
+}
+
+// The lie of the land, on a square grid running west to east along each row, south to north down the rows.
+async function terrain(lat, lon, half) {
+  const dLat = half / 110540, dLon = half / (111320 * Math.cos(lat * Math.PI / 180));
+  const pts = [];
+  for (let j = 0; j < ELE_N; j++) for (let i = 0; i < ELE_N; i++) {
+    const fx = (i / (ELE_N - 1)) * 2 - 1, fy = (j / (ELE_N - 1)) * 2 - 1;
+    pts.push((lat + fy * dLat).toFixed(6) + ',' + (lon + fx * dLon).toFixed(6));
+  }
+  for (const set of DEM) {
+    try {
+      const out = [];
+      for (let k = 0; k < pts.length; k += 100) {
+        const r = await fetch(`${ELEVATION}/${set}?locations=` + pts.slice(k, k + 100).join('|'), { headers: { 'User-Agent': UA } });
+        const j = await r.json().catch(() => ({}));
+        if (!r.ok || !j.results) throw new Error(j.error || 'answered ' + r.status);
+        for (const res of j.results) {
+          if (typeof res.elevation !== 'number') throw new Error('no cover here');
+          out.push(res.elevation);
+        }
+        await sleep(1100);   // the free service asks for no more than one request a second
+      }
+      const min = Math.min(...out), max = Math.max(...out);
+      console.log(`         ground from ${set}: ${min.toFixed(0)} m to ${max.toFixed(0)} m, a fall of ${(max - min).toFixed(0)} m`);
+      return { n: ELE_N, base: +min.toFixed(1), dataset: set, v: out.map(e => Math.round((e - min) * 10)) };
+    } catch (e) {
+      console.log(`::notice::${set} could not give ground heights here (${e.message})`);
+    }
+  }
+  console.log('::warning::No ground heights available, so this town will be flat.');
+  return null;
 }
 
 function slim(e) {   // keep only what the renderer reads, so the files stay small
@@ -63,22 +114,33 @@ function slim(e) {   // keep only what the renderer reads, so the files stay sma
 const lines = (await readFile('towns.txt', 'utf8')).split('\n').map(l => l.trim()).filter(l => l && !l.startsWith('#'));
 await mkdir('data', { recursive: true });
 const index = [];
-for (const name of lines) {
-  const s = slug(name), file = `data/${s}.json`;
+for (const line of lines) {
+  const want = readLine(line);
+  const name = want.name, s = slug(name), file = `data/${s}.json`;
   try {
     if (!process.env.FORCE && await exists(file)) {
       const old = JSON.parse(await readFile(file, 'utf8'));
-      index.push({ slug: s, name, lat: old.lat, lon: old.lon });
-      console.log('kept    ', name);
-      continue;
+      const sameSize = (old.half || DEFAULT_HALF) === want.half;
+      const sameSpot = !want.centre || (Math.abs(old.lat - want.centre.lat) < 1e-5 && Math.abs(old.lon - want.centre.lon) < 1e-5);
+      if (sameSize && sameSpot) {
+        index.push({ slug: s, name, lat: old.lat, lon: old.lon, half: old.half || DEFAULT_HALF });
+        console.log('kept    ', name);
+        continue;
+      }
+      console.log('changed ', name, '- refetching');
     }
-    const { lat, lon } = await geocode(name);
-    await sleep(1200);   // the place search allows one request a second
-    const elements = (await overpass(lat, lon)).map(slim);
+    let lat, lon;
+    if (want.centre) ({ lat, lon } = want.centre);
+    else {
+      ({ lat, lon } = await geocode(name));
+      await sleep(1200);   // the place search allows one request a second
+    }
+    const elements = (await overpass(lat, lon, want.half)).map(slim);
     if (!elements.some(e => e.tags.building || e.tags.highway)) throw new Error('nothing is mapped there yet');
-    await writeFile(file, JSON.stringify({ name, lat, lon, elements }));
-    index.push({ slug: s, name, lat, lon });
-    console.log('fetched ', name, '-', elements.length, 'map features');
+    const ele = await terrain(lat, lon, want.half);
+    await writeFile(file, JSON.stringify({ name, lat, lon, half: want.half, ele, elements }));
+    index.push({ slug: s, name, lat, lon, half: want.half });
+    console.log('fetched ', name, '-', elements.length, 'map features across', want.half * 2, 'metres');
   } catch (e) {
     console.log(`::warning::Skipped "${name}": ${e.message}`);
   }

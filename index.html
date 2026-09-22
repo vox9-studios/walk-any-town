@@ -119,6 +119,7 @@ function fbm(x,y,o){let s=0,a=.5,n=0;for(let i=0;i<o;i++){s+=a*vnoise(x,y);n+=a;
 /* ---------- world: a 400 m square of town as one height map (1 cell = 0.5 m) ---------- */
 const G=2;                        // the datum the lowest ground in town sits on
 let CELL=.5, N=800, CX=N/2, CY=N/2;   // a cell is half a metre to walk in, more to fly over
+let EYE,WALKC,RUNC,JUMPV,GRAV,STEPUP,BODY,STICK;   // a person, in cells of whatever size this world uses
 let Hm,                           // height of every cell
     Ev,                           // eaves height, where a cell is a building
     Gr,                           // the ground under it all
@@ -131,6 +132,8 @@ function sizeTo(half,cell){       // half is how far the map data reaches from t
   if(n===N&&c===CELL&&Hm)return;
   CELL=c;
   N=n;CX=CY=N/2;
+  EYE=1.7/CELL;WALKC=5.625/CELL;RUNC=9.375/CELL;JUMPV=5.5/CELL;GRAV=19/CELL;
+  STEPUP=.575/CELL;BODY=.175/CELL;STICK=.3/CELL;
   Hm=new Float32Array(N*N);Ev=new Float32Array(N*N);Gr=new Float32Array(N*N);
   Mt=new Uint8Array(N*N);Bi=new Uint16Array(N*N);Rn=new Uint16Array(N*N);
 }
@@ -158,9 +161,10 @@ function ground(ele){
 // materials: 0 grass 1 stone 2 paving 3 water 4 tree 5 asphalt 6 brick 7 render 8 timber frame 9 dirt 10 concrete
 // 11 road paint, then four cars: silver, dark blue, red, white
 const MAT=[[96,150,62],[172,166,150],[176,170,158],[34,74,112],[48,104,54],[78,80,86],[170,98,72],[228,220,200],[234,228,212],[150,122,84],[152,152,148],
-  [206,202,184],[172,176,180],[48,60,94],[138,44,40],[230,230,226]];
+  [206,202,184],[172,176,180],[48,60,94],[138,44,40],[230,230,226],
+  [88,94,80]];                    // 16: land nobody surveyed, beyond the corridor of a flight
 const RAMPS=[".,:;vwVW",".:;rtIHM#",".,:;=xXH"," .-~~=zZ",".:^itAY#",".,:;-=+x",".:;=rtHM#",".,:;ilIL",".,:;ilIL",".,:oaeSB",".,:;=+oX",
-  "..::==##",".,:;=coO",".,:;=coO",".,:;=coO",".,:;=coO"]
+  "..::==##",".,:;=coO",".,:;=coO",".,:;=coO",".,:;=coO",".,,::;;v"]
   .map(s=>Array.from(s,c=>c.charCodeAt(0)));
 // roof coverings: clay tile, slate, brown tile, felt, thatch, metal
 const ROOF=[[156,86,60],[86,90,104],[124,98,76],[66,68,72],[190,164,110],[138,146,152]], ROOFR=Array.from(".:~=unUM#",c=>c.charCodeAt(0));
@@ -249,7 +253,9 @@ function fillLine(pts,w,fn){           // a path with thickness w, in cells
 function buildFromOSM(data,lat0,lon0){
   sizeTo(data.half>0?data.half:N*CELL/2,data.cell);
   const fall=ground(data.ele);
-  Hm.set(Gr);Ev.fill(0);Mt.fill(0);Bi.fill(0);Rn.fill(0);bld=[null];names=[''];
+  // over a flight's corridor the ground beyond it was never asked for, and a bright lawn either side
+  // of the Thames is a worse lie than plain land
+  Hm.set(Gr);Ev.fill(0);Mt.fill(CELL>=1.5?16:0);Bi.fill(0);Rn.fill(0);bld=[null];names=[''];
   SUN.map=MOON.map=null;
   const kx=Math.cos(lat0*Math.PI/180)*111320/CELL, ky=110540/CELL;
   const P=g=>[(g.lon-lon0)*kx+CX,-(g.lat-lat0)*ky+CY];
@@ -736,6 +742,7 @@ function shade(i,m,isTop,wx,wy,wz,nx,ny,d,li,ci){
   else if(m===2)tex=.9+.16*hash2(Math.floor(wx/1.5),Math.floor(wy/1.5));
   else if(m===5)tex=(.94+.09*hash2(Math.floor(wx*.7),Math.floor(wy*.7)))*(.95+.1*vnoise(wx*.04,wy*.04));
   else if(m===9)tex=.82+.3*hash2(Math.floor(wx),Math.floor(wy));
+  else if(m===16)tex=(.9+.2*hash2(Math.floor(wx/3),Math.floor(wy/3)))*(.86+.28*vnoise(wx*.02,wy*.02));
   else if(m>=12)tex=isTop?1.06:(wz-(ci>=0?Gr[ci]:G)<1.5?.62:.92);   // glass above, shadowed sills below
   else if(m===4){
     const g0=ci>=0?Gr[ci]:G, up=wz-g0, crown=ci>=0?Hm[ci]-g0:2;
@@ -837,7 +844,7 @@ function skyCalc(az,el,full){
 function sky(i,az,el){skyCalc(az,el,true);put(i,o_c,o_r,o_g,o_b,o_fr,o_fg,o_fb);}
 
 /* ---------- camera + renderer: one grid walk per text column ---------- */
-const cam={x:CX,y:CY,z:G+3.4,yaw:-Math.PI/2,pitch:0};
+const cam={x:CX,y:CY,z:G+3.4,yaw:-Math.PI/2,pitch:0};   // z is set properly the moment anyone moves
 let planeLen=.72;
 
 function render(){
@@ -980,7 +987,7 @@ function draw(){
 // its own palette: on a map, ground wants to fall back and what you walk on wants to come forward
 const MAPCOL=[[58,84,48],[150,140,124],[126,122,112],[44,84,128],[44,76,46],[96,98,108],
   [150,140,124],[150,140,124],[150,140,124],[110,92,66],[150,140,124],
-  [120,122,128],[128,130,136],[80,86,102],[118,72,70],[166,166,164]];
+  [120,122,128],[128,130,136],[80,86,102],[118,72,70],[166,166,164],[64,70,58]];
 const mapEl=document.getElementById('map'), mctx=mapEl.getContext('2d');
 const MAPN=96, MAPZ=2;                    // pixels across, cells to a pixel: a little under a hundred metres
 mapEl.width=MAPN;mapEl.height=MAPN;
@@ -1199,7 +1206,6 @@ function along(d){                // where you are when you have flown this far
 }
 const keys={};let stick=null;const looks=new Map();let wantJump=false;
 
-const WALK=11.25, RUN=18.75;        // cells a second, and a cell is half a metre
 let runLock=false;
 const running=()=>runLock||!!(keys.ShiftLeft||keys.ShiftRight);
 
@@ -1209,7 +1215,7 @@ const hAt=(x,y)=>{
   if(cy<0)cy=0;else if(cy>=N)cy=N-1;
   return Hm[cy*N+cx];
 };
-const groundAt=(x,y)=>Math.max(hAt(x-.35,y-.35),hAt(x+.35,y-.35),hAt(x-.35,y+.35),hAt(x+.35,y+.35));
+const groundAt=(x,y)=>Math.max(hAt(x-BODY,y-BODY),hAt(x+BODY,y-BODY),hAt(x-BODY,y+BODY),hAt(x+BODY,y+BODY));
 
 function update(dt){
   if(tour){
@@ -1243,20 +1249,20 @@ function update(dt){
   w.yaw+=(((keys.ArrowRight)?1:0)-((keys.ArrowLeft)?1:0))*1.9*dt;
   if(stick){str+=stick.dx;fwd-=stick.dy;}
   const len=Math.hypot(fwd,str);if(len>1){fwd/=len;str/=len;}
-  const c=Math.cos(w.yaw),s=Math.sin(w.yaw),sp=(running()?RUN:WALK)*dt;
+  const c=Math.cos(w.yaw),s=Math.sin(w.yaw),sp=(running()?RUNC:WALKC)*dt;
   const nx=w.x+(fwd*c-str*s)*sp, ny=w.y+(fwd*s+str*c)*sp;
-  if(groundAt(nx,w.y)<=w.feet+1.15)w.x=nx;
-  if(groundAt(w.x,ny)<=w.feet+1.15)w.y=ny;
+  if(groundAt(nx,w.y)<=w.feet+STEPUP)w.x=nx;
+  if(groundAt(w.x,ny)<=w.feet+STEPUP)w.y=ny;
   w.x=Math.min(N-2,Math.max(2,w.x));w.y=Math.min(N-2,Math.max(2,w.y));
   const gr=groundAt(w.x,w.y);
-  if(w.vz<=0&&w.feet<=gr+.6){
+  if(w.vz<=0&&w.feet<=gr+STICK){
     w.feet+=(gr-w.feet)*Math.min(1,dt*16);w.vz=0;
-    if(wantJump||keys.Space){w.vz=11;w.feet+=.05;}
+    if(wantJump||keys.Space){w.vz=JUMPV;w.feet+=.05*BODY;}
   }else{
-    w.vz-=38*dt;w.feet+=w.vz*dt;if(w.feet<gr){w.feet=gr;w.vz=0;}
+    w.vz-=GRAV*dt;w.feet+=w.vz*dt;if(w.feet<gr){w.feet=gr;w.vz=0;}
   }
   wantJump=false;
-  cam.x=w.x;cam.y=w.y;cam.z=w.feet+3.4;cam.yaw=w.yaw;cam.pitch=w.pitch;
+  cam.x=w.x;cam.y=w.y;cam.z=w.feet+EYE;cam.yaw=w.yaw;cam.pitch=w.pitch;
 }
 
 const bTour=document.getElementById('bTour'),bColour=document.getElementById('bColour'),bDetail=document.getElementById('bDetail');

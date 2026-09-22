@@ -215,7 +215,7 @@ async function buildFlight(f) {
     return o;
   });
   const ele = await terrain(lat, lon, half);
-  return { name: f.title, lat, lon, half, cell: f.cell, route: f.route, ele, elements };
+  return { name: f.title, lat, lon, half, cell: f.cell, corridor: true, route: f.route, ele, elements };
 }
 
 const lines = (await readFile('towns.txt', 'utf8')).split('\n').map(l => l.trim()).filter(l => l && !l.startsWith('#'));

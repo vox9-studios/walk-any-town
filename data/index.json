@@ -99,6 +99,16 @@
   "route": null
  },
  {
+  "slug": "eiffel-tower-paris-france",
+  "name": "Eiffel Tower, Paris, France",
+  "lat": 48.8584,
+  "lon": 2.2945,
+  "half": 400,
+  "start": null,
+  "cell": 2,
+  "route": null
+ },
+ {
   "slug": "thames-eye-to-o2",
   "name": "The Thames, Westminster to the O2",
   "lat": 51.50075,

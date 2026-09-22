@@ -23,3 +23,4 @@ Parliament Square, London, UK | 400 | 51.50200,-0.12310 | @51.50090,-0.12200 | >
 Ile de la Cite, Paris, France | 400 | 48.85410,2.34780 | @48.85300,2.34990
 Charles Bridge, Prague, Czechia | 400 | 50.08630,14.41190 | @50.08650,14.41140
 Piazza Navona, Rome, Italy | 350 | 41.89890,12.47310
+Eiffel Tower, Paris, France | 400 | m2 | 48.85840,2.29450

@@ -39,7 +39,22 @@ select[hidden]{display:none}
 button[aria-pressed="true"],form button{background:var(--ink);color:var(--paper)}
 button:focus-visible,input:focus-visible{outline:2px solid var(--amber);outline-offset:2px}
 #stage{flex:1;min-height:0;position:relative;background:var(--night);touch-action:none;overflow:hidden}
-canvas{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none;cursor:grab}
+canvas{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none;cursor:grab;transition:opacity .5s}
+.controls[hidden]{display:none}
+#front{
+  position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:.95rem;padding:1.2rem;text-align:center;pointer-events:none;
+}
+#front[hidden]{display:none}
+#front>*{pointer-events:auto}
+#front h2{margin:0;font-weight:700;line-height:1.15;font-size:clamp(1.35rem,4.6vw,2.5rem);
+  color:#f6f1da;text-shadow:0 2px 14px #07081ae6}
+#front p{margin:0;max-width:34rem;font-size:.92rem;line-height:1.5;color:#ece7cf;text-shadow:0 1px 10px #07081ae6}
+#front form{width:min(34rem,92%);flex:none}
+#front input{background:#07081ab8;color:#f6f1da;border-color:#e9e4c8cc;font-size:1rem;padding:.72rem .85rem}
+#front input::placeholder{color:#e9e4c899}
+#front button{background:#f6f1da;color:#07081a;border-color:#f6f1da;font-size:1rem;padding:.72rem 1.1rem}
+#frontnote{font-size:.76rem;letter-spacing:.04em;color:#e9e4c8cc;text-shadow:0 1px 10px #07081ae6}
 canvas:active{cursor:grabbing}
 #msg{
   position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);max-width:min(30rem,88%);
@@ -93,6 +108,12 @@ a{color:inherit}
 <div id="stage">
   <canvas id="cv" aria-label="First-person view of the town, drawn entirely with text characters"></canvas>
   <div id="msg" role="status" aria-live="polite"></div>
+  <div id="front">
+    <h2>Walk any town, in letters</h2>
+    <p>Every street, building and hill is real, read from the map and drawn with nothing but characters.
+       Type a place to walk it, or take one of the flights.</p>
+    <div id="frontnote"></div>
+  </div>
   <canvas id="map" width="96" height="96" aria-hidden="true"></canvas>
   <div id="stick"><div id="nub"></div></div>
   <button id="run" aria-pressed="false">Run</button>
@@ -139,6 +160,8 @@ function sizeTo(half,cell){       // half is how far the map data reaches from t
 }
 sizeTo(N*CELL/2,.5);
 let bld=[null], names=[''], worldReady=false, spawn={x:CX,y:CY,yaw:-Math.PI/2};
+let projKx=1,projKy=1,projLat=0,projLon=0;
+const cellOf=(lat,lon)=>[(lon-projLon)*projKx+CX,-(lat-projLat)*projKy+CY];
 
 // The ground, read off the grid of heights the build fetched: metres above the town's lowest point,
 // in tenths, running west to east along each row and south to north down the rows.
@@ -254,10 +277,11 @@ function buildFromOSM(data,lat0,lon0){
   const fall=ground(data.ele);
   // over a flight's corridor the ground beyond it was never asked for, and a bright lawn either side
   // of the Thames is a worse lie than plain land
-  Hm.set(Gr);Ev.fill(0);Mt.fill(CELL>=1.5?12:0);Bi.fill(0);Rn.fill(0);bld=[null];names=[''];
+  Hm.set(Gr);Ev.fill(0);Mt.fill(data.corridor?12:0);Bi.fill(0);Rn.fill(0);bld=[null];names=[''];
   SUN.map=MOON.map=null;
   const kx=Math.cos(lat0*Math.PI/180)*111320/CELL, ky=110540/CELL;
   const P=g=>[(g.lon-lon0)*kx+CX,-(g.lat-lat0)*ky+CY];
+  projKx=kx;projKy=ky;projLat=lat0;projLon=lon0;
   const M=m=>m/CELL;
   const buildings=[],parts=[],roads=[],bridges=[],water=[],woods=[],parking=[],plazas=[],streams=[],trees=[],pois=[];
   for(const e of data.elements||[]){
@@ -426,6 +450,7 @@ function buildFromOSM(data,lat0,lon0){
     const info={
       style, tint:col?.95+.1*hs2:.86+.24*hs2, col, roofCol:parseCol(t['roof:colour'])||ROOF[ri],
       prof, slope, cap, span, church, small, house, shop, base, wall,
+      mast:wall>3.4*Math.min(fw,fd)&&!shop,     // a tower, a mast, a chimney: no rows of windows on it
       x0, y0, x1, y1, wx:fw, wy:fd, bayX:bayOf(fw,want), bayY:bayOf(fd,want),
       fh, g0:church?wall:Math.min(wall,shop?fh*1.15:fh),  // shops carry a taller ground floor
       tower:0,
@@ -670,7 +695,12 @@ function shade(i,m,isTop,wx,wy,wz,nx,ny,d,li,ci){
       const cx=Math.abs(wu-.5), doorBay=((nb%B.dEvery)+B.dEvery)%B.dEvery===B.dBay;
       let glass=false,door=false,board=false;
       if(!(B.shop&&fl===0)&&zz<.5){tex*=.74;force=45;}          // a plinth course where the wall meets the pavement
-      if(B.church){                                             // lancet windows, and a tower that is mostly blank stone
+      if(B.mast){                                               // structure, not storeys: girders and stages
+        const up=zz*CELL;
+        tex*=.72+.3*hash2(Math.floor(uu*.7),Math.floor(zz*.7));
+        if(up%22<2.4){tex*=.66;force=61;}                       // a stage every twenty-odd metres
+        else if(cx<.12||cx>.88){tex*=.8;force=124;}             // the legs, standing out at the corners
+      }else if(B.church){                                       // lancet windows, and a tower that is mostly blank stone
         const tower=B.tower>0&&Ev[ci]>B.base+B.wall+2;
         if(tower){
           const tz=(wz-B.base)/(B.tower-B.base);
@@ -897,9 +927,9 @@ const bcv=document.createElement('canvas'), bctx=bcv.getContext('2d');   // one 
 const fcv=document.createElement('canvas'), fctx=fcv.getContext('2d');   // one pixel per cell: letter colour
 const tcv=document.createElement('canvas'), tctx=tcv.getContext('2d');   // the letters themselves, used as a mask
 const STACK='ui-monospace,"SF Mono",Menlo,Consolas,"DejaVu Sans Mono","Liberation Mono",monospace';
-const DETAIL=[13,9,6,4,3], DETAIL_NAME=['coarse','medium','fine','extra fine','finest'];
-const DETAIL_CAP=[12000,22000,36000,56000,90000];   // on a big screen this, not the type size, sets the resolution
-let detail=3,ox=0,oy=0,bimg=null,fimg=null,ready=false,dch=null,dfg=null;
+const DETAIL=[9,6,4,3], DETAIL_NAME=['medium','fine','extra fine','finest'];
+const DETAIL_CAP=[22000,36000,56000,90000];   // on a big screen this, not the type size, sets the resolution
+let detail=2,ox=0,oy=0,bimg=null,fimg=null,ready=false,dch=null,dfg=null;
 const CH=[];for(let i=0;i<128;i++)CH.push(String.fromCharCode(i));
 
 function setup(){
@@ -1010,12 +1040,13 @@ function setMap(v){
 bMap.onclick=()=>setMap(!showMap);
 
 /* ---------- finding a place and fetching its map ---------- */
+let demo=true;                    // the front screen is up and a city is turning behind it
 const msgEl=document.getElementById('msg'), qEl=document.getElementById('q'), hintEl=document.getElementById('hint');
 const groundEl=document.getElementById('ground');
 const DEMNAME={eudem25m:'EU-DEM, produced using Copernicus data funded by the European Union',
   mapzen:'Mapzen terrain tiles', srtm30m:'NASA SRTM', srtm90m:'NASA SRTM', aster30m:'NASA ASTER GDEM',
   copernicus90:'Copernicus DEM, served by Open-Meteo'};
-const say=t=>{msgEl.textContent=t;};
+const say=t=>{msgEl.textContent=demo?'':t;};
 const OVERPASS=['https://overpass-api.de/api/interpreter','https://overpass.kumi.systems/api/interpreter','https://overpass.private.coffee/api/interpreter'];
 const giveUpAfter=ms=>{                          // so one slow server cannot hold up the next
   try{const c=new AbortController();setTimeout(()=>c.abort(),ms);return c.signal;}catch(e){return undefined;}
@@ -1061,7 +1092,7 @@ async function loadIndex(){                       // towns prepared ahead of tim
     const fl=document.getElementById('flights');
     for(const t of towns)if(t.route&&t.route.length>1){
       const o=document.createElement('option');o.value=t.slug;o.textContent=t.name;fl.appendChild(o);
-      fl.hidden=false;
+      hasFlights=true;fl.hidden=false;
     }
     const dl=document.getElementById('towns');dl.textContent='';
     for(const t of towns){const o=document.createElement('option');o.value=t.name;dl.appendChild(o);}
@@ -1082,7 +1113,7 @@ async function loadPlace(q){
       if(t.cell)townData.cell=t.cell;
       if(t.route)townData.route=t.route;
       await enter(townData,t.lat,t.lon);
-      try{history.replaceState(null,'','#'+t.slug);}catch(e){}
+      if(!demo)try{history.replaceState(null,'','#'+t.slug);}catch(e){}
       busy=false;return;
     }
     const key=slug(q), had=kept(key);
@@ -1154,12 +1185,13 @@ fileEl.addEventListener('change',async()=>{
   }catch(e){worldReady=false;say(e.name==='SyntaxError'?'That file is not valid JSON.':e.message);}
   busy=false;fileEl.value='';
 });
-document.getElementById('go').addEventListener('submit',e=>{e.preventDefault();qEl.blur();loadPlace(qEl.value);});
+document.getElementById('go').addEventListener('submit',e=>{e.preventDefault();qEl.blur();leaveFront();loadPlace(qEl.value);});
 const flightsEl=document.getElementById('flights');
 flightsEl.addEventListener('change',async()=>{          // pick a flight and you are taken to the start of it
   const slug=flightsEl.value;flightsEl.value='';
   const t=towns.find(x=>x.slug===slug);
   if(!t||busy)return;
+  leaveFront();
   await loadPlace(t.name);
   if(worldReady&&route)setTour(true);
 });
@@ -1168,8 +1200,9 @@ flightsEl.addEventListener('change',async()=>{          // pick a flight and you
 const walker={x:CX,y:CY,feet:G,vz:0,yaw:-Math.PI/2,pitch:0};
 const reduce=window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches;
 let tour=false,tourA=Math.PI/2+.9;
-let route=null,flyD=0,flyWay=1;   // the way through the town, how far along it we are, and which way round
+let route=null,flyD=0,flyWay=1,focus=null;   // the way through the town, how far along it, which way round
 function setRoute(pts){           // pts are already in cells
+  focus=null;
   if(!pts||pts.length<2){route=null;return;}
   const seg=[],cum=[0];let total=0;
   for(let i=0;i+1<pts.length;i++){
@@ -1203,6 +1236,19 @@ const groundAt=(x,y)=>Math.max(hAt(x-BODY,y-BODY),hAt(x+BODY,y-BODY),hAt(x-BODY,
 
 function update(dt){
   if(tour){
+    if(route&&route.loop&&focus){                   // round and round, watching one thing
+      flyD+=dt*(route.total/route.secs);
+      if(flyD>=route.total)flyD-=route.total;
+      const here=along(flyD);
+      cam.x=here[0];cam.y=here[1];
+      cam.z=groundAt(here[0],here[1])+route.height/CELL;
+      const want=Math.atan2(focus[1]-here[1],focus[0]-here[0]);
+      let turn=want-cam.yaw;turn-=Math.round(turn/TAU)*TAU;
+      cam.yaw+=turn*Math.min(1,dt*4);
+      const flat=Math.hypot(focus[0]-here[0],focus[1]-here[1])*CELL;
+      cam.pitch=-Math.atan2(route.height-route.aim,Math.max(30,flat));
+      return;
+    }
     if(route){                                      // a way through the town, there and back again
       // a long run wants a quicker cruise and more air under it, or it is seven minutes below the towers
       const km=route.total*CELL;
@@ -1264,7 +1310,7 @@ function setTour(v){
   bTour.textContent=v?'Land':(route?'Fly over':'Fly around');
   bTour.setAttribute('aria-pressed',String(v));
 }
-const takeControl=()=>{if(tour)setTour(false);};
+const takeControl=()=>{if(demo)leaveFront();else if(tour)setTour(false);};
 setTour(tour);
 bTour.onclick=()=>setTour(!tour);
 bColour.onclick=()=>{
@@ -1337,12 +1383,60 @@ const coarse=window.matchMedia&&matchMedia('(pointer:coarse)').matches;
 const baseHint=coarse?'Left thumb walks, right thumb looks; Run and Jump are bottom right.':'W A S D to walk, drag to look, space to jump, shift or the Run button to run.';
 hintEl.textContent=baseHint;
 
+/* ---------- the front screen: a city turning behind the search box ---------- */
+const SHOWCASE=[
+  {slug:'eiffel-tower-paris-france',  note:'Paris, circling the Eiffel Tower',
+   focus:[48.85840,2.29450], radius:300, ratio:.74, height:330, aim:170, secs:20},
+  {slug:'parliament-square-london-uk', note:'London, over the river by the Wheel',
+   focus:[51.50150,-0.12150], radius:300, ratio:.8, height:210, aim:55, secs:20},
+  {slug:'ile-de-la-cite-paris-france', note:'Paris again, around Notre-Dame',
+   focus:[48.85300,2.34990], radius:270, ratio:.78, height:200, aim:50, secs:20},
+];
+const frontEl=document.getElementById('front'), noteEl=document.getElementById('frontnote'),
+      formEl=document.getElementById('go'), controlsEl=document.querySelector('.controls'),
+      headerEl=document.querySelector('header');
+let demoIdx=0, demoT=0, demoBusy=false, hasFlights=false;
+
+function showFront(on){
+  demo=on;
+  frontEl.hidden=!on;
+  controlsEl.hidden=on;
+  flightsEl.hidden=on||!hasFlights;
+  if(on)frontEl.insertBefore(formEl,noteEl);
+  else{headerEl.insertBefore(formEl,controlsEl);msgEl.textContent='';}
+}
+function leaveFront(){if(demo){showFront(false);setTour(false);}}
+
+async function runDemo(i){
+  if(demoBusy||busy)return;
+  demoBusy=true;
+  const s=SHOWCASE[i%SHOWCASE.length], t=towns.find(x=>x.slug===s.slug);
+  if(!t){demoIdx++;demoBusy=false;return;}
+  cv.style.opacity='0';
+  await loadPlace(t.name);
+  if(demo&&worldReady){
+    const c=cellOf(s.focus[0],s.focus[1]), rx=s.radius/CELL, ry=rx*s.ratio, pts=[];
+    for(let k=0;k<=48;k++){const a=k/48*TAU;pts.push([c[0]+rx*Math.cos(a),c[1]+ry*Math.sin(a)]);}
+    setRoute(pts);
+    if(route){route.loop=true;route.secs=s.secs;route.height=s.height;route.aim=s.aim;focus=c;}
+    setTour(true);
+    noteEl.textContent=s.note;
+    demoT=0;
+  }
+  cv.style.opacity='1';
+  demoBusy=false;
+}
+
 /* ---------- loop ---------- */
 const statEl=document.getElementById('stat'),streetEl=document.getElementById('street');
 let last=0,fpsAcc=0,fpsN=0,statT=0,tWork=0,tDraw=0;
 const clock=(typeof performance!=='undefined'&&performance.now)?()=>performance.now():()=>Date.now();
 function frame(now){
   const dt=Math.min(.05,(now-last)/1000||0);last=now;time+=dt;
+  if(demo&&worldReady&&tour&&!demoBusy){
+    demoT+=dt;
+    if(demoT>(route&&route.secs?route.secs:20)){demoIdx++;runDemo(demoIdx);}
+  }
   if(ready&&worldReady){
     update(dt);
     const t0=clock();render();
@@ -1366,11 +1460,13 @@ setup();
 window.asciiTown={frameText,render,draw,drawMap,update,cam,walker,buildFromOSM,setMode,groundAt,get spawn(){return spawn;},get size(){return[W,H];},get bg(){return bgPix;},get fg(){return fgPix;},get ch(){return chars;}};
 requestAnimationFrame(frame);
 loadIndex().then(()=>{
-  let start=towns.length?towns[0].name:qEl.value;
-  try{if(location.hash.length>1)start=decodeURIComponent(location.hash.slice(1));}catch(e){}
-  qEl.value=start;loadPlace(start);
+  let asked='';
+  try{if(location.hash.length>1)asked=decodeURIComponent(location.hash.slice(1));}catch(e){}
+  if(asked){showFront(false);qEl.value=asked;loadPlace(asked);return;}
+  showFront(true);                              // arrive on the front screen, with a city turning behind it
+  runDemo(demoIdx);
 });
-addEventListener('hashchange',()=>{try{const h=decodeURIComponent(location.hash.slice(1));if(h&&slug(h)!==slug(qEl.value)){qEl.value=h;loadPlace(h);}}catch(e){}});
+addEventListener('hashchange',()=>{try{const h=decodeURIComponent(location.hash.slice(1));if(h&&slug(h)!==slug(qEl.value)){leaveFront();qEl.value=h;loadPlace(h);}}catch(e){}});
 })();
 </script>
 </body>

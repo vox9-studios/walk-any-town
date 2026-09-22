@@ -23,6 +23,16 @@ Streets, buildings and the shape of the ground come from open map data.
   `towns.txt` is always there in a fraction of a second and never depends on them, so it is still the better
   home for anywhere you care about.
 
+## The front screen
+
+Arriving with no place asked for puts up the front screen: the title, the search box in the middle, and a city
+turning slowly behind it. Each showcase is a real place from `data/`, flown on an ellipse around one landmark
+for twenty seconds before the next: the Eiffel Tower, then the river by the Wheel, then Notre-Dame. The list is
+`SHOWCASE` in the page, each entry naming a slug, what to circle, how far out, how high and how long.
+
+Type a place, pick a flight, or touch the view, and the front screen stands aside: the search box moves up into
+the header and the controls for moving about appear beside it.
+
 ## Walking about
 
 `W` `A` `S` `D` or the arrow keys walk, drag to look around, space jumps. Hold shift, or press **Run off** so it
@@ -33,7 +43,7 @@ thumb looks, and Run and Jump sit in the bottom right corner.
 are facing at the top and a pale dot for north. You are the amber mark in the middle. It reads about ninety
 metres of town and costs a tenth of a millisecond a frame.
 
-**Detail** steps the picture from coarse to finest. It sets both the size of the type and how many characters a
+**Detail** steps the picture from medium to finest. It sets both the size of the type and how many characters a
 frame may hold, so on a large screen the finest setting draws about seven times as many characters as the
 coarsest, and the footer counts them for you. Drop it a step or two if a walk feels heavy on an older phone.
 

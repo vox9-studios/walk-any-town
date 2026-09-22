@@ -77,6 +77,19 @@ The reach is in metres, between 100 and 400, and defaults to 200. A centre of yo
 streets in one square when neither of them sits in the middle: put the centre between them and widen the reach
 until both are inside. Changing either value rebuilds that town by itself on the next commit.
 
+Fields beginning with `>` are the turning points of a flight over the town, in order. Give a town a route and
+**Fly around** becomes **Fly over**: the camera climbs, follows the line at twenty-four metres a second looking
+where it is going, eases down at the far end, turns and comes back. Press the button again, now reading
+**Land**, and you are put on the ground under the camera facing the way you were flying, to walk on from there.
+
+```
+Parliament Square, London, UK | 400 | 51.50200,-0.12310 | @51.50090,-0.12200 | >51.50360,-0.11850 | >51.49900,-0.12530
+```
+
+A field written as `m6` sets how many metres a cell covers. The default is half a metre, which is what walking
+wants. Flying wants less: the arithmetic is unforgiving, and a square big enough to hold a city cannot be drawn
+at half a metre a cell.
+
 A fourth field, written with an `@` in front, says where a walk should begin. Without it you start on whichever
 named street runs nearest the middle of the square, which is usually right and occasionally dull:
 

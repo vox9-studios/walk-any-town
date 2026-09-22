@@ -5,7 +5,9 @@
   "lat": 51.124221,
   "lon": -0.008164,
   "half": 300,
-  "start": null
+  "start": null,
+  "cell": 0,
+  "route": null
  },
  {
   "slug": "the-square-forest-row-uk",
@@ -13,7 +15,9 @@
   "lat": 51.0981059,
   "lon": 0.0335803,
   "half": 300,
-  "start": null
+  "start": null,
+  "cell": 0,
+  "route": null
  },
  {
   "slug": "agde-france",
@@ -24,7 +28,9 @@
   "start": {
    "lat": 43.31494,
    "lon": 3.469291
-  }
+  },
+  "cell": 0,
+  "route": null
  },
  {
   "slug": "parliament-square-london-uk",
@@ -35,7 +41,26 @@
   "start": {
    "lat": 51.5009,
    "lon": -0.122
-  }
+  },
+  "cell": 0,
+  "route": [
+   {
+    "lat": 51.5036,
+    "lon": -0.1185
+   },
+   {
+    "lat": 51.501,
+    "lon": -0.1218
+   },
+   {
+    "lat": 51.499,
+    "lon": -0.1253
+   },
+   {
+    "lat": 51.4987,
+    "lon": -0.1265
+   }
+  ]
  },
  {
   "slug": "ile-de-la-cite-paris-france",
@@ -46,7 +71,9 @@
   "start": {
    "lat": 48.853,
    "lon": 2.3499
-  }
+  },
+  "cell": 0,
+  "route": null
  },
  {
   "slug": "charles-bridge-prague-czechia",
@@ -57,6 +84,8 @@
   "start": {
    "lat": 50.0865,
    "lon": 14.4114
-  }
+  },
+  "cell": 0,
+  "route": null
  }
 ]

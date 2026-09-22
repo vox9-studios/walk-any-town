@@ -30,17 +30,21 @@ const exists = p => access(p).then(() => true, () => false);
 const round = g => ({ lat: +g.lat.toFixed(6), lon: +g.lon.toFixed(6) });
 
 // A line is "Place", and may carry " | half-metres" to widen the square, " | lat,lon" to recentre it,
-// and " | @lat,lon" to say where a walk should begin.
+// " | @lat,lon" to say where a walk begins, " | metres-a-cell" as mNN, and " | >lat,lon" for each
+// turning point of a flight over it.
 function readLine(line) {
   const parts = line.split('|').map(s => s.trim());
-  const town = { name: parts[0], half: DEFAULT_HALF, centre: null, start: null };
-  const coords = /^@?\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)$/;
+  const town = { name: parts[0], half: DEFAULT_HALF, centre: null, start: null, cell: 0, route: [] };
+  const coords = /^[@>]?\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)$/;
   for (const p of parts.slice(1)) {
     const c = p.match(coords);
     if (c) {
       const at = { lat: +c[1], lon: +c[2] };
-      if (p.startsWith('@')) town.start = at; else town.centre = at;
-    } else if (/^\d+$/.test(p)) town.half = Math.min(MAX_HALF, Math.max(100, +p));
+      if (p.startsWith('@')) town.start = at;
+      else if (p.startsWith('>')) town.route.push(at);
+      else town.centre = at;
+    } else if (/^m\d+(?:\.\d+)?$/.test(p)) town.cell = Math.min(12, Math.max(0.5, +p.slice(1)));
+    else if (/^\d+$/.test(p)) town.half = Math.min(MAX_HALF, Math.max(100, +p));
   }
   return town;
 }
@@ -129,7 +133,8 @@ for (const line of lines) {
       const sameSize = (old.half || DEFAULT_HALF) === want.half;
       const sameSpot = !want.centre || (Math.abs(old.lat - want.centre.lat) < 1e-5 && Math.abs(old.lon - want.centre.lon) < 1e-5);
       if (sameSize && sameSpot) {
-        index.push({ slug: s, name, lat: old.lat, lon: old.lon, half: old.half || DEFAULT_HALF, start: want.start });
+        index.push({ slug: s, name, lat: old.lat, lon: old.lon, half: old.half || DEFAULT_HALF,
+          start: want.start, cell: want.cell, route: want.route.length ? want.route : null });
         console.log('kept    ', name);
         continue;
       }
@@ -145,7 +150,8 @@ for (const line of lines) {
     if (!elements.some(e => e.tags.building || e.tags.highway)) throw new Error('nothing is mapped there yet');
     const ele = await terrain(lat, lon, want.half);
     await writeFile(file, JSON.stringify({ name, lat, lon, half: want.half, ele, elements }));
-    index.push({ slug: s, name, lat, lon, half: want.half, start: want.start });
+    index.push({ slug: s, name, lat, lon, half: want.half, start: want.start,
+      cell: want.cell, route: want.route.length ? want.route : null });
     console.log('fetched ', name, '-', elements.length, 'map features across', want.half * 2, 'metres');
   } catch (e) {
     console.log(`::warning::Skipped "${name}": ${e.message}`);

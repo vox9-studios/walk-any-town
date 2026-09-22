@@ -14,6 +14,11 @@ Streets, buildings and the shape of the ground come from open map data.
   Nominatim where the place is, the Overpass servers for its buildings and streets, and Open-Meteo for the
   shape of its ground. A town built this way is kept in that browser, so going back to it costs nobody
   another request, and its address ending works as a link like any other.
+- A live lookup builds whatever the place search hands back, which for a misspelling can be somewhere else
+  entirely: "Adge" is a building in Nantes, 700 km from Agde. The search box is set to the name that was
+  actually found once the town is up, so a walk that looks nothing like the place you meant can be explained
+  by reading it. Towns in `towns.txt` appear in the box's suggestions and are matched exactly, so they cannot
+  go astray this way.
 - Those servers are free, shared and sometimes busy, and a refusal is normal rather than a fault. A place in
   `towns.txt` is always there in a fraction of a second and never depends on them, so it is still the better
   home for anywhere you care about.

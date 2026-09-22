@@ -997,6 +997,7 @@ async function loadPlace(q){
     data.ele=await liveTerrain(lat,lon,half);
     await enter(data,lat,lon);
     keep(key,{lat,lon,data});
+    qEl.value=place;      // show the place that was actually found, not the spelling that was typed
     try{history.replaceState(null,'','#'+encodeURIComponent(q));}catch(e){}
   }catch(e){worldReady=false;say(e.message);}
   busy=false;

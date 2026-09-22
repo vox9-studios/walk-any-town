@@ -718,7 +718,10 @@ function shade(i,m,isTop,wx,wy,wz,nx,ny,d,li,ci){
         else{base=[58,80,108];tex=(fz>.6?1.25:.95);force=46;}
       }
     }
-  }else if(m===0)tex=(.87+.24*hash2(Math.floor(wx*1.1),Math.floor(wy*1.1)))*(.88+.24*vnoise(wx*.05,wy*.05));
+  }else if(m===0){
+    tex=(.87+.24*hash2(Math.floor(wx*1.1),Math.floor(wy*1.1)))*(.88+.24*vnoise(wx*.05,wy*.05));
+    if(ci<0)tex*=.66;                                  // land beyond the square is not a mown lawn
+  }
   else if(m===2)tex=.9+.16*hash2(Math.floor(wx/1.5),Math.floor(wy/1.5));
   else if(m===5)tex=(.94+.09*hash2(Math.floor(wx*.7),Math.floor(wy*.7)))*(.95+.1*vnoise(wx*.04,wy*.04));
   else if(m===9)tex=.82+.3*hash2(Math.floor(wx),Math.floor(wy));
@@ -829,8 +832,11 @@ let planeLen=.72;
 function render(){
   const px=cam.x,py=cam.y,ez=cam.z,cosY=Math.cos(cam.yaw),sinY=Math.sin(cam.yaw);
   // from a hundred feet up, air that reads as distance at street level reads as milk
-  const up=(ez-groundAt(px,py)-6)/140;
+  const upc=ez-groundAt(px,py), up=(upc-6)/140;
   FOGE=FOGK*(1-.78*(up<0?0:up>1?1:up));
+  // From a height the ground runs away from you: at a hundred metres up it is seven hundred cells
+  // to where you are looking, and a street-level view distance leaves the whole frame empty.
+  const far=Math.min(N*1.15,MAXD+upc*3.4), steps=Math.min(3400,1100+(upc*5|0));
   const pl=planeLen,fx=(W/2)/pl,fyS=fx*cw/chhR,horizon=HR/2+cam.pitch*fyS;
   aw=.6/fx;ah=.6/fyS;
   for(let sx=0;sx<W;sx++){
@@ -841,7 +847,7 @@ function render(){
     const stepX=rdx<0?-1:1, stepY=rdy<0?-1:1;
     let sideX=(rdx<0?px-mx:mx+1-px)*ddx, sideY=(rdy<0?py-my:my+1-py)*ddy;
     let top=HR,tE=1e-4,side=-1,prev=-1;
-    for(let n=0;n<1100;n++){
+    for(let n=0;n<steps;n++){
       let h,m=0,ci=-1;
       if(mx>=0&&my>=0&&mx<N&&my<N){ci=my*N+mx;h=Hm[ci];m=Mt[ci];}
       else h=Gr[(my<0?0:my>=N?N-1:my)*N+(mx<0?0:mx>=N?N-1:mx)];
@@ -865,7 +871,7 @@ function render(){
           top=y0;
         }
       }
-      if(top<=0||tX>MAXD)break;
+      if(top<=0||tX>far)break;
       prev=ci;tE=tX<1e-4?1e-4:tX;
       if(sideX<sideY){sideX+=ddx;mx+=stepX;side=0;}else{sideY+=ddy;my+=stepY;side=1;}
     }

@@ -25,5 +25,38 @@
    "lat": 43.31494,
    "lon": 3.469291
   }
+ },
+ {
+  "slug": "parliament-square-london-uk",
+  "name": "Parliament Square, London, UK",
+  "lat": 51.502,
+  "lon": -0.1231,
+  "half": 400,
+  "start": {
+   "lat": 51.5009,
+   "lon": -0.122
+  }
+ },
+ {
+  "slug": "ile-de-la-cite-paris-france",
+  "name": "Ile de la Cite, Paris, France",
+  "lat": 48.8541,
+  "lon": 2.3478,
+  "half": 400,
+  "start": {
+   "lat": 48.853,
+   "lon": 2.3499
+  }
+ },
+ {
+  "slug": "charles-bridge-prague-czechia",
+  "name": "Charles Bridge, Prague, Czechia",
+  "lat": 50.0863,
+  "lon": 14.4119,
+  "half": 400,
+  "start": {
+   "lat": 50.0865,
+   "lon": 14.4114
+  }
  }
 ]

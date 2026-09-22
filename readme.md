@@ -37,6 +37,9 @@ metres of town and costs a tenth of a millisecond a frame.
 frame may hold, so on a large screen the finest setting draws about seven times as many characters as the
 coarsest, and the footer counts them for you. Drop it a step or two if a walk feels heavy on an older phone.
 
+**Daylight** steps round to **Evening** and then **Night**. Evening puts the sun low in the west, throws long
+shadows, warms everything it touches and lights the windows, which is the best time to walk a high street.
+
 **Blocks** trades texture for detail. With it on the picture is worked out on twice as many rows and two colours
 are laid in every row of type, the way block characters do it in ANSI art, so vertical detail doubles without the
 type getting smaller. The character texture goes, but shop signs keep their letters and read more clearly than
@@ -116,8 +119,15 @@ its map. The page reads, and falls back sensibly without:
 | Walls | `building:material`, `building:facade:material`, `building:colour` |
 | Roofs | `roof:shape`, `roof:material`, `roof:colour`, `roof:height`, `roof:levels` |
 | Storeys | `building:levels`, `height` |
+| The shape of a modelled building | `building:part` with its own `height`, `roof:shape` and colours |
 | Shopfronts | `shop`, `amenity`, `name` |
 | Streets | `width`, `lanes`, `oneway`, `surface`, `highway` |
+
+`building:part` is the one that changes a landmark. Where somebody has modelled a building in three dimensions,
+each part carries its own height and roof, and the page raises them separately, tallest last. Parliament Square
+holds 1,577 of them: the Palace of Westminster comes out with its towers and pinnacles rather than as one slab
+the shape of its footprint. Where nobody has modelled it, as at East Grinstead, a church still gets the invented
+west tower, because there is nothing better to go on.
 
 Where a tag is missing the page guesses from the kind of building and the shape of its footprint: a terrace of
 houses gets ridged roofs and chimneys, a deep commercial block gets a flat roof behind a parapet, and a
@@ -132,6 +142,9 @@ records, so a building with no tags is a plausible building rather than the real
   the old High Street stands well above the shops on London Road.
 - Buildings stand level on the mean ground under their own footprint, so a house on a slope shows more wall on
   its downhill side, as it does in life.
+- **Fly around** circles the middle of the town at a height and radius set by the size of the square, so it is a
+  fly-over of a city and a turn about a village. Haze thins as the camera climbs: air that reads as distance at
+  street level reads as milk from three hundred feet up.
 - A road tagged `bridge` that crosses water gets a deck arched clear of it, about four metres of air at the
   crown, with a stone parapet down each side. Drawn flat at ground level, as it was before, a bridge is just a
   road that happens to look wet. Bridges shorter than ten metres, and those that cross something other than

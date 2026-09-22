@@ -250,7 +250,7 @@ function buildFromOSM(data,lat0,lon0){
   const kx=Math.cos(lat0*Math.PI/180)*111320/CELL, ky=110540/CELL;
   const P=g=>[(g.lon-lon0)*kx+CX,-(g.lat-lat0)*ky+CY];
   const M=m=>m/CELL;
-  const buildings=[],roads=[],bridges=[],water=[],woods=[],parking=[],plazas=[],streams=[],trees=[],pois=[];
+  const buildings=[],parts=[],roads=[],bridges=[],water=[],woods=[],parking=[],plazas=[],streams=[],trees=[],pois=[];
   for(const e of data.elements||[]){
     const t=e.tags||{};
     if(e.type==='node'){
@@ -261,6 +261,9 @@ function buildFromOSM(data,lat0,lon0){
     const rings=e.type==='way'?(e.geometry?[e.geometry.map(P)]:[]):(e.members||[]).filter(m=>m.geometry).map(m=>m.geometry.map(P));
     if(!rings.length)continue;
     if(t.building)buildings.push({rings,t,id:e.id});
+    // Where anyone has modelled a building in three dimensions, each part carries its own height and roof.
+    // This is what makes a real tower a tower rather than a slab the shape of its footprint.
+    else if((t['building:part']&&t['building:part']!=='no')||t.man_made==='tower')parts.push({rings,t,id:e.id});
     else if(t.highway){
       if(t.area==='yes')plazas.push(rings);
       else if(t.tunnel!=='yes'&&ROADW[t.highway]){
@@ -360,7 +363,8 @@ function buildFromOSM(data,lat0,lon0){
     fillLine(b.pts,b.w,(c,i,t)=>{if(!Bi[c]){Mt[c]=5;Hm[c]=deckAt(b,i,t)[1];}});
 
   // buildings: what the map says each one is made of, how tall it stands, and what shape its roof takes
-  for(const b of buildings){
+  const raise=(list,isPart)=>{
+  for(const b of list){
     const t=b.t,hs=hash2(b.id%100003,7),hs2=hash2(b.id%100003,19),hs3=hash2(b.id%100003,41);
     const kind=(t.building||'yes').toLowerCase(), trade=(t.shop||t.amenity||t.tourism||'').toLowerCase();
     const church=/church|cathedral|chapel/.test(kind)||t.amenity==='place_of_worship';
@@ -412,9 +416,16 @@ function buildFromOSM(data,lat0,lon0){
       sign:'', signCol:TRADE[trade]||SIGNS[Math.floor(hs2*4.99)]
     };
     info.sign=signOf(t.name);
+    info.part=isPart;
+    if(isPart&&!(parseFloat(t.height)>0)&&!(parseFloat(t['building:levels'])>0))continue;   // no height, nothing to say
     const idx=bld.length;if(idx>65000)break;bld.push(info);
     fillPoly(b.rings,c=>{Bi[c]=idx;Mt[c]=info.style;Hm[c]=top;Ev[c]=top;});
   }
+  };
+  raise(buildings,false);
+  // the tallest part last, so a spire wins over the roof it rises from
+  parts.sort((a,b)=>(parseFloat(a.t.height)||parseFloat(a.t['building:levels'])*3||0)-(parseFloat(b.t.height)||parseFloat(b.t['building:levels'])*3||0));
+  raise(parts,true);
   for(const p of pois){                                 // shops mapped as points: mark the building they sit in
     const x=Math.floor(p.p[0]),y=Math.floor(p.p[1]);if(x<0||y<0||x>=N||y>=N)continue;
     const B=bld[Bi[y*N+x]];
@@ -469,7 +480,7 @@ function buildFromOSM(data,lat0,lon0){
   }
   for(let i=1;i<bld.length;i++){                        // an English parish church carries its tower at the west end
     const B=bld[i];
-    if(!B.church)continue;
+    if(!B.church||B.part)continue;
     const alongX=B.wx>=B.wy;                            // the nave runs east to west, so the tower sits at the low-x end
     const side=Math.min(Math.max(8,Math.min(B.wx,B.wy)*.72),22);
     const sx=alongX?B.x0+.6:(B.x0+B.x1-side)/2, sy=alongX?(B.y0+B.y1-side)/2:B.y0+.6;
@@ -492,7 +503,7 @@ function buildFromOSM(data,lat0,lon0){
   }
   for(let i=1;i<bld.length;i++){                        // chimney stacks, where a pitched roof is big enough for one
     const B=bld[i];
-    if(B.prof<2||B.church||B.small||Math.min(B.wx,B.wy)<7)continue;
+    if(B.prof<2||B.church||B.small||B.part||Math.min(B.wx,B.wy)<7)continue;
     const mx=(B.x0+B.x1)/2, my=(B.y0+B.y1)/2;
     const ends=B.prof===2?[[B.x0+2.5,my],[B.x1-2.5,my]]:[[mx,B.y0+2.5],[mx,B.y1-2.5]];
     for(const q of ends){
@@ -594,7 +605,8 @@ function buildFromOSM(data,lat0,lon0){
 // cast shadows: for every cell, the height below which the light is blocked
 function shadowMap(az,el){
   let top=G;for(let i=0;i<N*N;i++)if(Hm[i]>top)top=Hm[i];
-  const out=new Float32Array(N*N),dx=Math.cos(az),dy=Math.sin(az),tn=Math.tan(el),K=Math.ceil((top-G+2)/tn);
+  const out=new Float32Array(N*N),dx=Math.cos(az),dy=Math.sin(az),tn=Math.tan(el);
+  const K=Math.min(300,Math.ceil((top-G+2)/tn));    // a hundred and fifty metres of shadow is plenty
   for(let y=0;y<N;y++)for(let x=0;x<N;x++){
     let mh=-99;
     for(let k=1;k<=K;k++){
@@ -612,17 +624,22 @@ let W=0,H=0,chars,fgPix,bgPix,cw=6,chh=10;
 let HR=0,chhR=10,Lt;              // rows of picture, and how tall one is: with blocks on, two to a row of type
 let time=0, colour=true, blocks=false, aw=.01, ah=.01;
 const MAXD=380;
-const SUN={az:Math.PI/2+.65,el:.75,map:null}, MOON={az:-Math.PI/2-.5,el:.55,map:null};
-let day=true,LAZ,LEL,LDX,LDY,LCOS,LSIN,shadowH=null;
+const SUN={az:Math.PI/2+.65,el:.75,map:null}, MOON={az:-Math.PI/2-.5,el:.55,map:null},
+      DUSK={az:Math.PI-.16,el:.14,map:null};      // low, and in the west, where the sun goes
+const MODENAME=['Night','Daylight','Evening'];
+let mode=1,day=true,LAZ,LEL,LDX,LDY,LCOS,LSIN,shadowH=null;
+let FOGE=.004;                    // haze as it stands this frame: thinner the higher you are
 let AR,AG,AB,SR,SG,SB,FOG,FARG,FOGK,BGK,FGK,FGA,GAM,GAIN;
-function setMode(d){
-  day=d;const L=d?SUN:MOON;
+function setMode(m){
+  mode=m===true?1:m===false?0:m;day=mode===1;
+  const L=mode===1?SUN:mode===2?DUSK:MOON;
   if(!L.map&&worldReady)L.map=shadowMap(L.az,L.el);
   shadowH=L.map;LAZ=L.az;LEL=L.el;LDX=Math.cos(L.az);LDY=Math.sin(L.az);LCOS=Math.cos(L.el);LSIN=Math.sin(L.el);
-  if(d){AR=.36;AG=.42;AB=.54;SR=.95;SG=.88;SB=.72;FOG=[176,200,228];FARG=[150,186,170];FOGK=.0038;BGK=.8;FGK=1.22;FGA=8;GAM=1;GAIN=1.05;}
+  if(mode===1){AR=.36;AG=.42;AB=.54;SR=.95;SG=.88;SB=.72;FOG=[176,200,228];FARG=[150,186,170];FOGK=.0038;BGK=.8;FGK=1.22;FGA=8;GAM=1;GAIN=1.05;}
+  else if(mode===2){AR=.30;AG=.29;AB=.36;SR=1.26;SG=.58;SB=.24;FOG=[190,150,130];FARG=[184,152,142];FOGK=.0042;BGK=.78;FGK=1.26;FGA=10;GAM=.92;GAIN=1.06;}
   else{AR=.11;AG=.13;AB=.2;SR=.17;SG=.2;SB=.29;FOG=[24,21,44];FARG=[24,24,44];FOGK=.009;BGK=.6;FGK=1.6;FGA=26;GAM=.5;GAIN=1.3;}
 }
-setMode(true);
+setMode(1);
 
 function put(i,c,r,g,b,fr,fg,fb,lt){
   chars[i]=c;Lt[i]=lt?1:0;
@@ -689,7 +706,7 @@ function shade(i,m,isTop,wx,wy,wz,nx,ny,d,li,ci){
       if(!glass&&!door&&!board&&eave<1&&eave>=0){tex*=.62;force=61;}   // the gutter line under the eaves
       if(door){base=[66,48,36];tex=.6;force=35;}
       else if(glass){
-        if(!day&&hash2(nb+fl*31,bi)<.5){er=255;eg=196;eb=104;force=35;}
+        if(mode!==1&&hash2(nb+fl*31,bi)<.5){er=255;eg=196;eb=104;force=35;}
         else{base=[58,80,108];tex=(fz>.6?1.25:.95);force=46;}
       }
     }
@@ -725,7 +742,7 @@ function shade(i,m,isTop,wx,wy,wz,nx,ny,d,li,ci){
     }
     let rr,rg,rb;
     if(hit>=0){
-      const b2=Bi[hit]?bld[Bi[hit]].roofCol:MAT[Mt[hit]],f2=1-Math.exp(-(d+t)*FOGK);
+      const b2=Bi[hit]?bld[Bi[hit]].roofCol:MAT[Mt[hit]],f2=1-Math.exp(-(d+t)*FOGE);
       rr=b2[0]*(AR+SR*.4);rg=b2[1]*(AG+SG*.4);rb=b2[2]*(AB+SB*.4);
       rr+=(FOG[0]-rr)*f2;rg+=(FOG[1]-rg)*f2;rb+=(FOG[2]-rb)*f2;
     }else{skyCalc(Math.atan2(diry,dirx),Math.atan(s2/Math.hypot(dirx,diry)),false);rr=o_r;rg=o_g;rb=o_b;}
@@ -734,7 +751,7 @@ function shade(i,m,isTop,wx,wy,wz,nx,ny,d,li,ci){
     force=rip>.03?126:(rip<-.03?61:45);
   }
 
-  const f=1-Math.exp(-d*FOGK);
+  const f=1-Math.exp(-d*FOGE);
   r+=(FOG[0]-r)*f;g+=(FOG[1]-g)*f;b+=(FOG[2]-b)*f;
   if(r>255)r=255;if(g>255)g=255;if(b>255)b=255;
   const lum=(.3*r+.59*g+.11*b)/255;
@@ -752,30 +769,38 @@ let o_r=0,o_g=0,o_b=0,o_c=32,o_fr=0,o_fg=0,o_fb=0;
 function skyCalc(az,el,full){
   o_c=32;o_fr=o_fg=o_fb=0;
   const ca=Math.cos(az),sa=Math.sin(az);
-  const k=Math.sqrt(el>1?1:el<0?0:el);
+  const e0=el>1?1:el<0?0:el;
+  const k=mode===2?Math.pow(e0,.72):Math.sqrt(e0);
   let r,g,b;
-  if(day){r=160-104*k;g=196-98*k;b=234-48*k;}else{r=42-33*k;g=34-24*k;b=68-42*k;}
+  if(mode===1){r=160-104*k;g=196-98*k;b=234-48*k;}
+  else if(mode===2){r=250-198*k;g=138-80*k;b=68+36*k;}  // burnt orange along the horizon, dusk blue overhead
+  else{r=42-33*k;g=34-24*k;b=68-42*k;}
   let da=az-LAZ;da-=Math.round(da/TAU)*TAU;da*=LCOS;
   const de=el-LEL, rr=Math.sqrt(da*da+de*de);
-  if(rr<.06){
-    if(day){o_r=255;o_g=250;o_b=214;o_c=64;o_fr=255;o_fg=255;o_fb=240;}
+  if(rr<(mode===2?.075:.06)){
+    if(mode===1){o_r=255;o_g=250;o_b=214;o_c=64;o_fr=255;o_fg=255;o_fb=240;}
+    else if(mode===2){o_r=255;o_g=176;o_b=88;o_c=64;o_fr=255;o_fg=214;o_fb=150;}
     else{const hs=hash2(Math.floor(da*80),Math.floor(de*80));o_r=200;o_g=196;o_b=168;o_c=hs<.3?79:(hs<.7?64:35);o_fr=250;o_fg=246;o_fb=215;}
     return;
   }
-  if(rr<.4){const gl=1-rr/.4,q=gl*gl*(day?70:46);r+=q;g+=q*.95;b+=q*.8;}
+  if(mode===2){                                   // the sun's glow spreads far along a low horizon
+    if(rr<.9){const gl=1-rr/.9,q=gl*gl*132;r+=q;g+=q*.5;b+=q*.16;}
+  }else if(rr<.4){const gl=1-rr/.4,q=gl*gl*(day?70:46);r+=q;g+=q*.95;b+=q*.8;}
   const o=full?3:2, se=Math.sin(el)+.1, tt=2.4/se, ce=Math.cos(el);
   const u=ca*ce*tt+time*.025, v=sa*ce*tt+time*.011;
   const dn=fbm(u,v,o), cv=sm(.5,.68,dn)*sm(.015,.12,el);
   if(cv>.02){
     let lit=.55+(dn-fbm(u+LDX*.22,v+LDY*.22,o))*4;lit=lit<0?0:lit>1?1:lit;
     lit*=1-.3*cv;
-    const cr=day?138+117*lit:26+44*lit, cg=day?142+113*lit:26+44*lit, cb=day?156+99*lit:40+50*lit;
+    const cr=mode===1?138+117*lit:mode===2?96+158*lit:26+44*lit,
+          cg=mode===1?142+113*lit:mode===2?72+108*lit:26+44*lit,
+          cb=mode===1?156+99*lit:mode===2?86+70*lit:40+50*lit;
     r+=(cr-r)*cv;g+=(cg-g)*cv;b+=(cb-b)*cv;
     if(full&&cv>.15){
       let q=Math.floor(cv*(.35+.75*lit)*CLOUD.length);if(q>=CLOUD.length)q=CLOUD.length-1;
       o_c=CLOUD[q];o_fr=r*1.1+12;o_fg=g*1.1+12;o_fb=b*1.1+12;
     }
-  }else if(full&&!day&&el>.04){
+  }else if(full&&mode===0&&el>.04){
     const ga=Math.floor(az*40), ge=Math.floor(el*40), hs=hash2(ga,ge);
     if(hs<.13){
       const sA=(ga+hash2(ga+91,ge))/40, sE=(ge+hash2(ga,ge+57))/40, c2=Math.cos(el);
@@ -795,6 +820,9 @@ let planeLen=.72;
 
 function render(){
   const px=cam.x,py=cam.y,ez=cam.z,cosY=Math.cos(cam.yaw),sinY=Math.sin(cam.yaw);
+  // from a hundred feet up, air that reads as distance at street level reads as milk
+  const up=(ez-groundAt(px,py)-6)/140;
+  FOGE=FOGK*(1-.78*(up<0?0:up>1?1:up));
   const pl=planeLen,fx=(W/2)/pl,fyS=fx*cw/chhR,horizon=HR/2+cam.pitch*fyS;
   aw=.6/fx;ah=.6/fyS;
   for(let sx=0;sx<W;sx++){
@@ -1079,7 +1107,7 @@ async function enter(data,lat,lon){
   if(!info.buildings&&!info.roads)throw new Error('There are no buildings or streets in this map data. Try a nearby town.');
   hintEl.textContent=(info.fall>4?'The ground here rises and falls '+Math.round(info.fall)+' m. ':'')+baseHint;
   groundEl.textContent=data.ele&&DEMNAME[data.ele.dataset]?' Ground heights from '+DEMNAME[data.ele.dataset]+'.':'';
-  setMode(day);
+  setMode(mode);
   Object.assign(walker,{x:spawn.x,y:spawn.y,feet:groundAt(spawn.x,spawn.y),vz:0,yaw:spawn.yaw,pitch:0});
   say('');
 }
@@ -1124,7 +1152,8 @@ const groundAt=(x,y)=>Math.max(hAt(x-.35,y-.35),hAt(x+.35,y-.35),hAt(x-.35,y+.35
 function update(dt){
   if(tour){
     tourA+=dt*.07;
-    cam.x=spawn.x+150*Math.cos(tourA);cam.y=spawn.y+150*Math.sin(tourA);cam.z=groundAt(cam.x,cam.y)+80;
+    const R=N*.2;                                   // a wider circle over a bigger town
+    cam.x=spawn.x+R*Math.cos(tourA);cam.y=spawn.y+R*Math.sin(tourA);cam.z=groundAt(cam.x,cam.y)+N*.11;
     cam.yaw=Math.atan2(spawn.y-cam.y,spawn.x-cam.x);cam.pitch=-.45;
     return;
   }
@@ -1168,7 +1197,11 @@ function setBlocks(v){
 }
 bBlocks.onclick=()=>{if(!blocks&&!colour)bColour.onclick();setBlocks(!blocks);};
 const bDay=document.getElementById('bDay');
-bDay.onclick=()=>{setMode(!day);bDay.textContent=day?'Daylight':'Night';bDay.setAttribute('aria-pressed',String(day));};
+bDay.onclick=()=>{
+  setMode((mode+1)%3);                            // daylight, then evening, then night
+  bDay.textContent=MODENAME[mode];
+  bDay.setAttribute('aria-pressed',String(mode===1));
+};
 bDetail.onclick=()=>{detail=(detail+1)%DETAIL.length;bDetail.textContent='Detail: '+DETAIL_NAME[detail];setup();};
 document.getElementById('jump').addEventListener('pointerdown',e=>{e.preventDefault();wantJump=true;takeControl();});
 

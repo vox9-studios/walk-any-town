@@ -14,11 +14,13 @@ const ELE_N = 33;                                // ground is sampled on a 33 by
 const DEFAULT_HALF = 200;                        // half the side of the square, in metres
 const MAX_HALF = 400;                            // the page draws half a metre to a cell, so this is 1600 cells across
 
-const FILTERS = ['way[building]', 'relation[building]', 'way[highway]', 'way[natural=water]', 'relation[natural=water]',
+const FILTERS = ['way[building]', 'relation[building]', 'way["building:part"]', 'relation["building:part"]',
+  'way[man_made=tower]', 'way[highway]', 'way[natural=water]', 'relation[natural=water]',
   'way[natural=wood]', 'way[waterway]', 'way[landuse=forest]', 'way[amenity=parking]', 'node[natural=tree]',
   'node[shop][name]', 'node[amenity][name]'];
 const KEEP = ['building', 'building:levels', 'building:material', 'building:facade:material', 'building:colour',
-  'building:part', 'height', 'roof:shape', 'roof:levels', 'roof:height', 'roof:material', 'roof:colour',
+  'building:part', 'height', 'min_height', 'building:min_level', 'roof:shape', 'roof:levels', 'roof:height',
+  'roof:material', 'roof:colour',
   'highway', 'name', 'area', 'tunnel', 'bridge', 'layer', 'lanes', 'width', 'oneway', 'surface', 'sidewalk',
   'natural', 'waterway', 'landuse', 'amenity', 'shop', 'tourism', 'historic', 'man_made', 'tower:type'];
 

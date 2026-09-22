@@ -4,6 +4,7 @@
   "name": "High Street, East Grinstead, UK",
   "lat": 51.124221,
   "lon": -0.008164,
-  "half": 300
+  "half": 300,
+  "start": null
  }
 ]

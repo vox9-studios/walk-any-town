@@ -52,6 +52,13 @@ canvas:active{cursor:grabbing}
 #jump{bottom:1rem}
 #run{bottom:4.6rem}
 #run[aria-pressed="true"]{background:#e9e4c8;color:#07081a;border-color:#e9e4c8}
+#map{
+  position:absolute;right:1rem;top:1rem;width:7.5rem;height:7.5rem;
+  border:1px solid #e9e4c8aa;border-radius:50%;background:#07081acc;
+  pointer-events:none;image-rendering:pixelated;
+}
+#map[hidden]{display:none}
+@media (max-width:34rem){#map{width:5.5rem;height:5.5rem;right:.6rem;top:.6rem}}
 #stick{position:absolute;width:96px;height:96px;border:1px dashed #e9e4c8aa;border-radius:50%;pointer-events:none;display:none;transform:translate(-50%,-50%)}
 #nub{position:absolute;left:50%;top:50%;width:30px;height:30px;margin:-15px;border-radius:50%;background:#e9e4c8aa}
 @media (pointer:coarse){#jump,#run{display:block}}
@@ -76,6 +83,7 @@ a{color:inherit}
     <button id="bColour" aria-pressed="true">Colour on</button>
     <button id="bDetail">Detail: extra fine</button>
     <button id="bBlocks" aria-pressed="false">Blocks off</button>
+    <button id="bMap" aria-pressed="true">Map on</button>
     <button id="bFile">Load map file</button>
     <input id="file" type="file" accept=".json,.geojson,.txt,application/json" hidden>
   </div>
@@ -83,6 +91,7 @@ a{color:inherit}
 <div id="stage">
   <canvas id="cv" aria-label="First-person view of the town, drawn entirely with text characters"></canvas>
   <div id="msg" role="status" aria-live="polite"></div>
+  <canvas id="map" width="96" height="96" aria-hidden="true"></canvas>
   <div id="stick"><div id="nub"></div></div>
   <button id="run" aria-pressed="false">Run</button>
   <button id="jump">Jump</button>
@@ -258,16 +267,17 @@ function buildFromOSM(data,lat0,lon0){
   for(const r of water)fillPoly(r,set(3,-1));
   for(const s of streams)fillLine(s.pts,M(s.w),set(3,-1));
   // streets: pavements first, then footpaths, then the carriageway on top
+  const aim=data.start?P(data.start):null, AX=aim?aim[0]:CX, AY=aim?aim[1]:CY;
   let best=1e9;
   const nameIdx=n=>{if(!n)return 0;let i=names.indexOf(n);if(i<0){i=names.length;names.push(n);}return i;};
   const car=r=>!/^(pedestrian|footway|path|cycleway|steps|track|bridleway)$/.test(r.t.highway);
   for(const r of roads){
     const ni=nameIdx(r.t.name),w=M(roadWidth(r.t));
     if(car(r)&&r.t.highway!=='service')fillLine(r.pts,w+M(4.4),c=>{if(Mt[c]!==5||Rn[c]===0){Mt[c]=2;Hm[c]=Gr[c]+.3;}if(ni)Rn[c]=ni;});
-    for(let i=0;i+1<r.pts.length&&ni;i++){            // remember the named street nearest the centre, to face along it
+    for(let i=0;i+1<r.pts.length&&ni;i++){            // remember the named street nearest the mark, to face along it
       const a=r.pts[i],b=r.pts[i+1],dx=b[0]-a[0],dy=b[1]-a[1];
-      let t=((CX-a[0])*dx+(CY-a[1])*dy)/(dx*dx+dy*dy||1e-9);t=t<0?0:t>1?1:t;
-      const dd=Math.hypot(CX-a[0]-dx*t,CY-a[1]-dy*t);
+      let t=((AX-a[0])*dx+(AY-a[1])*dy)/(dx*dx+dy*dy||1e-9);t=t<0?0:t>1?1:t;
+      const dd=Math.hypot(AX-a[0]-dx*t,AY-a[1]-dy*t);
       if(dd<best){best=dd;spawn={x:a[0]+dx*t,y:a[1]+dy*t,yaw:Math.atan2(dy,dx)};}
     }
   }
@@ -460,6 +470,7 @@ function buildFromOSM(data,lat0,lon0){
   const wood=new Uint8Array(N*N);for(const r of woods)fillPoly(r,c=>{wood[c]=1;});
   const loose=Math.round(N*N/10000);   // trees nobody has mapped, sown thinly over open grass
   for(let k=0;k<5000;k++){const x=rnd()*N,y=rnd()*N,c=Math.floor(y)*N+Math.floor(x);if(wood[c]||k<loose)tree(x,y);}
+  if(aim&&best>60){spawn.x=AX;spawn.y=AY;}          // asked to start somewhere with no named street near it
   // stand on the nearest open ground to the chosen spot
   let sx=Math.floor(spawn.x),sy=Math.floor(spawn.y),found=false;
   for(let r=0;r<300&&!found;r++)for(let a=0;a<Math.max(1,r*6)&&!found;a++){
@@ -796,6 +807,47 @@ function draw(){
   }
 }
 
+/* ---------- the little round map, looking straight down, with the way you face at the top ---------- */
+// its own palette: on a map, ground wants to fall back and what you walk on wants to come forward
+const MAPCOL=[[58,84,48],[150,140,124],[126,122,112],[44,84,128],[44,76,46],[96,98,108],
+  [150,140,124],[150,140,124],[150,140,124],[110,92,66],[150,140,124]];
+const mapEl=document.getElementById('map'), mctx=mapEl.getContext('2d');
+const MAPN=96, MAPZ=2;                    // pixels across, cells to a pixel: a little under a hundred metres
+mapEl.width=MAPN;mapEl.height=MAPN;
+const mimg=mctx.createImageData(MAPN,MAPN);
+let showMap=true;
+function drawMap(){
+  if(!showMap||!worldReady)return;
+  const d=mimg.data, half=MAPN/2, r2=half*half;
+  const fx=Math.cos(cam.yaw), fy=Math.sin(cam.yaw), rx=-fy, ry=fx;
+  for(let py=0;py<MAPN;py++){
+    const oy=py-half+.5;
+    for(let px=0;px<MAPN;px++){
+      const ox=px-half+.5, j=(py*MAPN+px)*4;
+      if(ox*ox+oy*oy>r2){d[j+3]=0;continue;}
+      const wx=cam.x+(ox*rx-oy*fx)*MAPZ, wy=cam.y+(ox*ry-oy*fy)*MAPZ;
+      const cx=Math.floor(wx), cy=Math.floor(wy);
+      let col;
+      if(cx<0||cy<0||cx>=N||cy>=N)col=[26,28,34];
+      else col=MAPCOL[Mt[cy*N+cx]]||MAPCOL[0];
+      d[j]=col[0];d[j+1]=col[1];d[j+2]=col[2];d[j+3]=236;
+    }
+  }
+  mctx.putImageData(mimg,0,0);
+  mctx.fillStyle='#f2a33a';                       // you, and the way you are looking
+  mctx.fillRect(half-1,half-1,3,3);
+  mctx.fillRect(half,half-8,1,6);
+  mctx.fillStyle='#e9e4c8';                       // and where north has got to
+  mctx.fillRect(half-fx*(half-4)-1,half+fy*(half-4)-1,2,2);
+}
+const bMap=document.getElementById('bMap');
+function setMap(v){
+  showMap=v;mapEl.hidden=!v;
+  bMap.textContent=v?'Map on':'Map off';
+  bMap.setAttribute('aria-pressed',String(v));
+}
+bMap.onclick=()=>setMap(!showMap);
+
 /* ---------- finding a place and fetching its map ---------- */
 const msgEl=document.getElementById('msg'), qEl=document.getElementById('q'), hintEl=document.getElementById('hint');
 const groundEl=document.getElementById('ground');
@@ -858,7 +910,9 @@ async function loadPlace(q){
       const r=await fetch('data/'+t.slug+'.json');
       if(!r.ok)throw new Error('The map file for '+t.name+' is missing from this site.');
       qEl.value=t.name;
-      await enter(await r.json(),t.lat,t.lon);
+      const townData=await r.json();
+      if(t.start)townData.start=t.start;
+      await enter(townData,t.lat,t.lon);
       try{history.replaceState(null,'','#'+t.slug);}catch(e){}
       busy=false;return;
     }
@@ -1054,7 +1108,7 @@ let last=0,fpsAcc=0,fpsN=0,statT=0;
 function frame(now){
   const dt=Math.min(.05,(now-last)/1000||0);last=now;time+=dt;
   if(ready&&worldReady){
-    update(dt);render();draw();
+    update(dt);render();draw();drawMap();
     fpsAcc+=dt;fpsN++;statT+=dt;
     if(statT>.5){
       statEl.textContent=(W*HR).toLocaleString()+(blocks?' half cells':' characters')+' a frame, '+Math.round(fpsN/fpsAcc)+' fps.';
@@ -1067,7 +1121,7 @@ function frame(now){
 }
 if(window.ResizeObserver)new ResizeObserver(setup).observe(stage);else addEventListener('resize',setup);
 setup();
-window.asciiTown={frameText,render,draw,update,cam,walker,buildFromOSM,setMode,groundAt,get spawn(){return spawn;},get size(){return[W,H];},get bg(){return bgPix;},get fg(){return fgPix;},get ch(){return chars;}};
+window.asciiTown={frameText,render,draw,drawMap,update,cam,walker,buildFromOSM,setMode,groundAt,get spawn(){return spawn;},get size(){return[W,H];},get bg(){return bgPix;},get fg(){return fgPix;},get ch(){return chars;}};
 requestAnimationFrame(frame);
 loadIndex().then(()=>{
   let start=towns.length?towns[0].name:qEl.value;

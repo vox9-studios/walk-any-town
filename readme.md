@@ -24,6 +24,10 @@ Streets, buildings and the shape of the ground come from open map data.
 reads **Run on**, to move at about two thirds again the walking pace. On a phone the left thumb walks, the right
 thumb looks, and Run and Jump sit in the bottom right corner.
 
+**Map** puts a small round map in the corner, looking straight down on the streets around you with the way you
+are facing at the top and a pale dot for north. You are the amber mark in the middle. It reads about ninety
+metres of town and costs a tenth of a millisecond a frame.
+
 **Detail** steps the picture from coarse to finest. It sets both the size of the type and how many characters a
 frame may hold, so on a large screen the finest setting draws about seven times as many characters as the
 coarsest, and the footer counts them for you. Drop it a step or two if a walk feels heavy on an older phone.
@@ -64,6 +68,18 @@ High Street, East Grinstead, UK | 300 | 51.124221,-0.008164
 The reach is in metres, between 100 and 400, and defaults to 200. A centre of your own is how you hold two
 streets in one square when neither of them sits in the middle: put the centre between them and widen the reach
 until both are inside. Changing either value rebuilds that town by itself on the next commit.
+
+A fourth field, written with an `@` in front, says where a walk should begin. Without it you start on whichever
+named street runs nearest the middle of the square, which is usually right and occasionally dull:
+
+```
+Agde, France | 300 | 43.313650,3.470200 | @43.314786,3.469694
+```
+
+That one opens on the Pont des Maréchaux, looking along the bridge with the Hérault on both sides. The page
+puts you on the named street nearest the mark and faces you along it, so aiming at a bridge, a market place or
+a particular corner all work. Moving the mark costs nothing: it is kept in `data/index.json` rather than in the
+town's own file, so no map data is fetched again.
 
 A wider square is not free. The page works at half a metre to the cell, so 300 m reaches 1200 cells across and
 takes a little under a second to build, against about a fifth of a second at 200 m. Phones manage 300 m; go much

@@ -121,6 +121,79 @@ function slim(e) {   // keep only what the renderer reads, so the files stay sma
   return out;
 }
 
+// ---- flights: a corridor along a route, kilometres long, drawn several metres to the cell ----
+const FLIGHT_FILTERS = ['way[building]', 'relation[building]', 'way["building:part"]', 'way[man_made=tower]',
+  'way[natural=water]', 'relation[natural=water]', 'way[waterway]', 'way[landuse=forest]', 'way[natural=wood]',
+  'way[highway~"^(motorway|trunk|primary|secondary|tertiary|residential|unclassified|living_street|pedestrian)$"]'];
+
+async function corridor(poly) {
+  const ql = '[out:json][timeout:120];(' + FLIGHT_FILTERS.map(f => f + '(poly:"' + poly + '");').join('') + ');out geom;';
+  let last = 'no server tried';
+  for (const url of OVERPASS) {
+    try {
+      const r = await fetch(url, {
+        method: 'POST',
+        headers: { 'User-Agent': UA, 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: 'data=' + encodeURIComponent(ql),
+      });
+      const body = await r.text();
+      if (r.ok && body.trimStart().startsWith('{')) return JSON.parse(body).elements || [];
+      last = url + (r.ok ? ' was busy' : ' answered ' + r.status);
+    } catch (e) { last = url + ': ' + e.message; }
+    await sleep(2500);
+  }
+  throw new Error(last);
+}
+
+// At several metres to the cell a node every half metre is wasted weight, so drop the ones that
+// cannot move a cell, and round what is left to about a metre.
+function thin(geom, step) {
+  if (!geom || geom.length < 3) return geom;
+  const out = [geom[0]];
+  let last = geom[0];
+  for (let i = 1; i < geom.length - 1; i++) {
+    const dy = (geom[i].lat - last.lat) * 110540;
+    const dx = (geom[i].lon - last.lon) * 111320 * Math.cos(geom[i].lat * Math.PI / 180);
+    if (dx * dx + dy * dy >= step * step) { out.push(geom[i]); last = geom[i]; }
+  }
+  out.push(geom[geom.length - 1]);
+  return out;
+}
+const coarse = g => ({ lat: +g.lat.toFixed(5), lon: +g.lon.toFixed(5) });
+
+async function buildFlight(f) {
+  const lat0 = f.route.reduce((s, p) => s + p.lat, 0) / f.route.length;
+  const lon0 = f.route.reduce((s, p) => s + p.lon, 0) / f.route.length;
+  const kx = Math.cos(lat0 * Math.PI / 180) * 111320, ky = 110540;
+  const xy = p => [(p.lon - lon0) * kx, (p.lat - lat0) * ky];
+  let minx = 1e9, maxx = -1e9, miny = 1e9, maxy = -1e9;
+  for (const p of f.route) { const [x, y] = xy(p); minx = Math.min(minx, x); maxx = Math.max(maxx, x); miny = Math.min(miny, y); maxy = Math.max(maxy, y); }
+  const half = Math.ceil((Math.max(maxx - minx, maxy - miny) / 2 + f.wide) / 100) * 100;
+  const lat = lat0 + (miny + maxy) / 2 / ky, lon = lon0 + (minx + maxx) / 2 / kx;
+
+  const seen = new Map();
+  for (let i = 0; i + 1 < f.route.length; i++) {     // one query a leg, each a little wider than the leg
+    const a = f.route[i], b = f.route[i + 1];
+    const dx = (b.lon - a.lon) * kx, dy = (b.lat - a.lat) * ky, L = Math.hypot(dx, dy) || 1;
+    const nx = -dy / L * f.wide, ny = dx / L * f.wide, ex = dx / L * f.wide * .4, ey = dy / L * f.wide * .4;
+    const at = (p, ox, oy) => (p.lat + oy / ky).toFixed(6) + ' ' + (p.lon + ox / kx).toFixed(6);
+    const poly = [at(a, nx - ex, ny - ey), at(b, nx + ex, ny + ey), at(b, -nx + ex, -ny + ey), at(a, -nx - ex, -ny - ey)].join(' ');
+    const got = await corridor(poly);
+    for (const e of got) if (!seen.has(e.type + e.id)) seen.set(e.type + e.id, e);
+    console.log(`         leg ${i + 1} of ${f.route.length - 1}: ${got.length} features, ${seen.size} so far`);
+    await sleep(2500);
+  }
+  const elements = [...seen.values()].map(e => {
+    const o = slim(e);
+    if (o.geometry) o.geometry = thin(o.geometry, f.cell / 2).map(coarse);
+    if (o.members) o.members = o.members.map(m => ({ role: m.role, geometry: thin(m.geometry, f.cell / 2).map(coarse) }));
+    if (o.lat !== undefined) Object.assign(o, coarse(o));
+    return o;
+  });
+  const ele = await terrain(lat, lon, half);
+  return { name: f.title, lat, lon, half, cell: f.cell, route: f.route, ele, elements };
+}
+
 const lines = (await readFile('towns.txt', 'utf8')).split('\n').map(l => l.trim()).filter(l => l && !l.startsWith('#'));
 await mkdir('data', { recursive: true });
 const index = [];
@@ -157,5 +230,40 @@ for (const line of lines) {
     console.log(`::warning::Skipped "${name}": ${e.message}`);
   }
 }
+// ---- and the flights ----
+let flightLines = [];
+try { flightLines = (await readFile('scripts/flights.txt', 'utf8')).split('\n').map(l => l.trim()).filter(l => l && !l.startsWith('#')); } catch (e) {}
+const flights = [];
+for (const l of flightLines) {
+  if (l.startsWith('>')) {
+    const c = l.slice(1).match(/^\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)/);
+    if (c && flights.length) flights[flights.length - 1].route.push({ lat: +c[1], lon: +c[2] });
+  } else {
+    const p = l.split('|').map(x => x.trim());
+    flights.push({ slug: slug(p[0]), title: p[1] || p[0], cell: +p[2] || 8, wide: +p[3] || 500, route: [] });
+  }
+}
+for (const f of flights) {
+  const file = `data/${f.slug}.json`;
+  try {
+    if (f.route.length < 2) throw new Error('needs at least two turning points');
+    if (!process.env.FORCE && await exists(file)) {
+      const old = JSON.parse(await readFile(file, 'utf8'));
+      index.push({ slug: f.slug, name: f.title, lat: old.lat, lon: old.lon, half: old.half,
+        cell: old.cell, start: null, route: f.route });
+      console.log('kept    ', f.title);
+      continue;
+    }
+    console.log('flying  ', f.title, '- fetching the corridor leg by leg');
+    const out = await buildFlight(f);
+    await writeFile(file, JSON.stringify(out));
+    index.push({ slug: f.slug, name: f.title, lat: out.lat, lon: out.lon, half: out.half,
+      cell: out.cell, start: null, route: f.route });
+    console.log('fetched ', f.title, '-', out.elements.length, 'features,', Math.round(JSON.stringify(out).length / 1024), 'KB');
+  } catch (e) {
+    console.log(`::warning::Skipped flight "${f.title}": ${e.message}`);
+  }
+}
+
 await writeFile('data/index.json', JSON.stringify(index, null, 1));
-console.log(index.length + ' of ' + lines.length + ' towns ready');
+console.log(index.length + ' of ' + (lines.length + flights.length) + ' places ready');

@@ -332,6 +332,7 @@ function buildFromOSM(data,lat0,lon0){
   // Bridges. Drawn flat at ground level a bridge is just a wet-looking road, so one that crosses water
   // gets a deck arched clear of it and a parapet down each side, the way a masonry bridge sits.
   const decks=[];
+  if(CELL<1.5){
   for(const br of bridges){
     const pts=br.pts;if(pts.length<2)continue;
     const seg=[],cum=[0];let total=0;
@@ -366,6 +367,7 @@ function buildFromOSM(data,lat0,lon0){
   }
   for(const b of decks)
     fillLine(b.pts,b.w,(c,i,t)=>{if(!Bi[c]){Mt[c]=5;Hm[c]=deckAt(b,i,t)[1];}});
+  }
 
   // buildings: what the map says each one is made of, how tall it stands, and what shape its roof takes
   const raise=(list,isPart)=>{
@@ -534,7 +536,7 @@ function buildFromOSM(data,lat0,lon0){
   // trees: mapped ones, woods, and a scatter over open grass
   const rnd=mulberry(Math.floor(Math.abs(lat0*1e4))+Math.floor(Math.abs(lon0*1e4))*31);
   const tree=(tx,ty,street)=>{
-    const rad=5+rnd()*4,th=12+rnd()*10,cx=Math.floor(tx),cy=Math.floor(ty);
+    const rad=(2.5+rnd()*2)/CELL,th=(6+rnd()*5)/CELL,cx=Math.floor(tx),cy=Math.floor(ty);
     if(cx<8||cy<8||cx>=N-8||cy>=N-8||Mt[cy*N+cx]!==0)return;
     const gb=Gr[cy*N+cx];
     for(let y=Math.floor(ty-rad);y<=ty+rad;y++)for(let x=Math.floor(tx-rad);x<=tx+rad;x++){
@@ -552,6 +554,7 @@ function buildFromOSM(data,lat0,lon0){
   if(aim&&best>60){spawn.x=AX;spawn.y=AY;}          // asked to start somewhere with no named street near it
   // A street with no markings and nothing parked on it reads as a model of a street. Both are invented,
   // like the scattered trees, but a town without them looks emptier than any town is.
+  if(CELL<1.5){
   const runOf=pts=>{
     const seg=[],cum=[0];let total=0;
     for(let i=0;i+1<pts.length;i++){const l=Math.hypot(pts[i+1][0]-pts[i][0],pts[i+1][1]-pts[i][1]);seg.push(l);cum.push(total+=l);}
@@ -606,6 +609,7 @@ function buildFromOSM(data,lat0,lon0){
     }
   }
 
+  }
   // stand on the nearest open ground to the chosen spot
   let sx=Math.floor(spawn.x),sy=Math.floor(spawn.y),found=false;
   for(let r=0;r<300&&!found;r++)for(let a=0;a<Math.max(1,r*6)&&!found;a++){
@@ -1209,14 +1213,17 @@ const groundAt=(x,y)=>Math.max(hAt(x-.35,y-.35),hAt(x+.35,y-.35),hAt(x-.35,y+.35
 function update(dt){
   if(tour){
     if(route){                                      // a way through the town, there and back again
-      const sp=24/CELL;                             // twenty-four metres a second, an easy cruise
+      // a long run wants a quicker cruise and more air under it, or it is seven minutes below the towers
+      const km=route.total*CELL;
+      const sp=Math.max(24,Math.min(62,km/200))/CELL;
+      const cruise=Math.min(200,54+km/70);
       flyD+=dt*sp*flyWay;
       if(flyD>=route.total){flyD=route.total;flyWay=-1;}
       else if(flyD<=0){flyD=0;flyWay=1;}
       const here=along(flyD), ahead=along(flyD+flyWay*(30/CELL));
       const ease=Math.min(1,Math.min(flyD,route.total-flyD)/(120/CELL));
       cam.x=here[0];cam.y=here[1];
-      cam.z=groundAt(here[0],here[1])+(24+52*ease)/CELL;     // rise as you leave, settle as you arrive
+      cam.z=groundAt(here[0],here[1])+(cruise*(.3+.7*ease))/CELL;   // rise as you leave, settle as you arrive
       const want=Math.atan2(ahead[1]-here[1],ahead[0]-here[0]);
       let turn=want-cam.yaw;turn-=Math.round(turn/TAU)*TAU;  // swing round to it rather than snapping
       cam.yaw+=turn*Math.min(1,dt*1.6);

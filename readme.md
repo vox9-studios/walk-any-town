@@ -122,6 +122,35 @@ Latin alphabet, so a name written in Japanese or Greek leaves the fascia blank r
 
 To refresh a town after the map has been improved, delete its file in `data/` and commit.
 
+## Flights
+
+A town is a few hundred metres square, drawn at half a metre to the cell, and that is what walking wants.
+Flying wants something else. The London Eye to the O2 is 8.5 km: at half a metre to the cell that is 17,000
+cells across and close to four gigabytes of arrays, which is not a thing a browser will do.
+
+So a flight is a different kind of place, listed in `scripts/flights.txt`:
+
+```
+thames-eye-to-o2 | The Thames, Westminster to the O2 | 8 | 520
+> 51.49700,-0.12700
+> 51.50150,-0.12150
+> 51.50450,-0.11800
+```
+
+The fields are a name for the file, a title, how many metres a cell covers, and how far either side of the
+line to fetch. Each `>` is a turning point. The build asks the map servers for a corridor along the route, one
+leg at a time rather than one enormous query, thins the shapes to what a cell that size can hold, and writes
+it out like any other place. Ten kilometres of the Thames comes to about seven thousand buildings, because
+most of a river corridor is river.
+
+Flights appear in the **Take a flight** menu beside the search box. Choosing one loads it and takes off. Press
+the button again, now reading **Land**, and you are put on the ground under the camera to walk on from there.
+The cruise is quicker and higher the longer the route, so a ten kilometre run is about three minutes each way
+at two hundred metres rather than seven minutes underneath the towers.
+
+Above a metre and a half to the cell the page stops drawing what cannot be seen from the air: roofs, chimneys,
+church towers, bridge parapets, road markings and parked cars. Trees are sized in metres, so they stay trees.
+
 ## Making a town look more like itself
 
 Everything the page draws comes from tags on OpenStreetMap, so the surest way to improve a street is to improve

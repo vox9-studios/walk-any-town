@@ -1,0 +1,20 @@
+# Flights: a long, coarse world to fly over, built from a corridor along a route.
+#
+#   <slug> | <metres a cell> | <corridor half-width in metres>
+#   > lat,lon        one line per turning point, in order
+#
+# A flight is not a town. It covers kilometres rather than a few hundred metres, so it is drawn
+# several metres to the cell and shipped as a picture of a height map rather than as map shapes.
+
+thames-eye-to-o2 | The Thames, Westminster to the O2 | 8 | 520
+> 51.49700,-0.12700
+> 51.50150,-0.12150
+> 51.50450,-0.11800
+> 51.50800,-0.10500
+> 51.50850,-0.08900
+> 51.50600,-0.07550
+> 51.50300,-0.06000
+> 51.50650,-0.03800
+> 51.50450,-0.01950
+> 51.49300,-0.01400
+> 51.49800,0.00350

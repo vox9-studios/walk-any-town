@@ -6,5 +6,24 @@
   "lon": -0.008164,
   "half": 300,
   "start": null
+ },
+ {
+  "slug": "the-square-forest-row-uk",
+  "name": "The Square, Forest Row, UK",
+  "lat": 51.0981059,
+  "lon": 0.0335803,
+  "half": 300,
+  "start": null
+ },
+ {
+  "slug": "agde-france",
+  "name": "Agde, France",
+  "lat": 43.31365,
+  "lon": 3.4702,
+  "half": 300,
+  "start": {
+   "lat": 43.314786,
+   "lon": 3.469694
+  }
  }
 ]

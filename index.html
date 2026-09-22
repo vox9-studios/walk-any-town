@@ -159,12 +159,11 @@ function ground(ele){
   return top*.1;
 }
 // materials: 0 grass 1 stone 2 paving 3 water 4 tree 5 asphalt 6 brick 7 render 8 timber frame 9 dirt 10 concrete
-// 11 road paint, then four cars: silver, dark blue, red, white
+// 11 road paint, 12 land nobody surveyed, beyond the corridor of a flight
 const MAT=[[96,150,62],[172,166,150],[176,170,158],[34,74,112],[48,104,54],[78,80,86],[170,98,72],[228,220,200],[234,228,212],[150,122,84],[152,152,148],
-  [206,202,184],[172,176,180],[48,60,94],[138,44,40],[230,230,226],
-  [88,94,80]];                    // 16: land nobody surveyed, beyond the corridor of a flight
+  [206,202,184],[88,94,80]];
 const RAMPS=[".,:;vwVW",".:;rtIHM#",".,:;=xXH"," .-~~=zZ",".:^itAY#",".,:;-=+x",".:;=rtHM#",".,:;ilIL",".,:;ilIL",".,:oaeSB",".,:;=+oX",
-  "..::==##",".,:;=coO",".,:;=coO",".,:;=coO",".,:;=coO",".,,::;;v"]
+  "..::==##",".,,::;;v"]
   .map(s=>Array.from(s,c=>c.charCodeAt(0)));
 // roof coverings: clay tile, slate, brown tile, felt, thatch, metal
 const ROOF=[[156,86,60],[86,90,104],[124,98,76],[66,68,72],[190,164,110],[138,146,152]], ROOFR=Array.from(".:~=unUM#",c=>c.charCodeAt(0));
@@ -255,7 +254,7 @@ function buildFromOSM(data,lat0,lon0){
   const fall=ground(data.ele);
   // over a flight's corridor the ground beyond it was never asked for, and a bright lawn either side
   // of the Thames is a worse lie than plain land
-  Hm.set(Gr);Ev.fill(0);Mt.fill(CELL>=1.5?16:0);Bi.fill(0);Rn.fill(0);bld=[null];names=[''];
+  Hm.set(Gr);Ev.fill(0);Mt.fill(CELL>=1.5?12:0);Bi.fill(0);Rn.fill(0);bld=[null];names=[''];
   SUN.map=MOON.map=null;
   const kx=Math.cos(lat0*Math.PI/180)*111320/CELL, ky=110540/CELL;
   const P=g=>[(g.lon-lon0)*kx+CX,-(g.lat-lat0)*ky+CY];
@@ -577,50 +576,13 @@ function buildFromOSM(data,lat0,lon0){
       if(along%7<3.2)Mt[c]=11;
     });
   }
-  const CARCOL=[12,13,14,15], PARKABLE=/^(residential|unclassified|living_street|tertiary|service)$/;
-  const putCar=(px,py,ux,uy,m)=>{
-    const nx=-uy,ny=ux,cells=[],high=[];
-    for(let a=-4.1;a<=4.1;a+=.5)for(let b=-1.6;b<=1.6;b+=.5){
-      const x=Math.floor(px+ux*a+nx*b),y=Math.floor(py+uy*a+ny*b);
-      if(x<1||y<1||x>=N-1||y>=N-1)return false;
-      const c=y*N+x;
-      if(Bi[c]||(Mt[c]!==5&&Mt[c]!==11))return false; // only on the carriageway, never half on a kerb
-      cells.push(c);high.push(Math.abs(a)<1.9?3:2.3); // the cabin stands above the bonnet and the boot
-    }
-    for(let k=0;k<cells.length;k++){
-      const c=cells[k],h=Gr[c]+high[k];
-      if(h>Hm[c]){Mt[c]=m;Hm[c]=h;}
-    }
-    return true;
-  };
-  for(const r of roads){
-    if(!car(r)||!PARKABLE.test(r.t.highway))continue;
-    const wM=roadWidth(r.t);if(wM<6)continue;
-    const off=M(wM/2-1.2), probe=M(wM/2+1.4);
-    const pts=r.pts;let walked=0;
-    for(let i=0;i+1<pts.length;i++){
-      const ax=pts[i][0],ay=pts[i][1],L=Math.hypot(pts[i+1][0]-ax,pts[i+1][1]-ay);
-      if(L<2){walked+=L;continue;}
-      const ux=(pts[i+1][0]-ax)/L,uy=(pts[i+1][1]-ay)/L,nx=-uy,ny=ux;
-      for(let d=18-(walked%18);d<L-4;d+=18){
-        for(const side of[1,-1]){
-          if(rnd()<.45)continue;                      // not every space is taken
-          const ex=Math.floor(ax+ux*d+nx*probe*side),ey=Math.floor(ay+uy*d+ny*probe*side);
-          if(ex<0||ey<0||ex>=N||ey>=N)continue;
-          if(Mt[ey*N+ex]===5||Mt[ey*N+ex]===11)continue;   // still road out there: this is a junction
-          putCar(ax+ux*d+nx*off*side,ay+uy*d+ny*off*side,ux,uy,CARCOL[Math.floor(rnd()*4)]);
-        }
-      }
-      walked+=L;
-    }
-  }
 
   }
   // stand on the nearest open ground to the chosen spot
   let sx=Math.floor(spawn.x),sy=Math.floor(spawn.y),found=false;
   for(let r=0;r<300&&!found;r++)for(let a=0;a<Math.max(1,r*6)&&!found;a++){
     const x=Math.floor(spawn.x+r*Math.cos(a/(r||1))),y=Math.floor(spawn.y+r*Math.sin(a/(r||1)));
-    if(x>2&&y>2&&x<N-2&&y<N-2&&!Bi[y*N+x]&&Mt[y*N+x]!==4&&Mt[y*N+x]!==3&&Mt[y*N+x]<12){sx=x;sy=y;found=true;}
+    if(x>2&&y>2&&x<N-2&&y<N-2&&!Bi[y*N+x]&&Mt[y*N+x]!==4&&Mt[y*N+x]!==3){sx=x;sy=y;found=true;}
   }
   spawn.x=sx+.5;spawn.y=sy+.5;
   worldReady=true;
@@ -654,6 +616,10 @@ const SUN={az:Math.PI/2+.65,el:.75,map:null}, MOON={az:-Math.PI/2-.5,el:.55,map:
 const MODENAME=['Night','Daylight','Evening'];
 let mode=1,day=true,LAZ,LEL,LDX,LDY,LCOS,LSIN,shadowH=null;
 let FOGE=.004;                    // haze as it stands this frame: thinner the higher you are
+// Three quarters of a frame is spent shading cells. While the view is moving, shade every other row
+// and repeat it: half the work for a picture that is sliding past anyway, full detail the moment you
+// stand still. Off when the picture is already coarse, where the rows are too few to spare.
+let easeRows=true, pcx=0,pcy=0,pcz=0,pcyaw=0,pcpit=0;
 let AR,AG,AB,SR,SG,SB,FOG,FARG,FOGK,BGK,FGK,FGA,GAM,GAIN;
 function setMode(m){
   mode=m===true?1:m===false?0:m;day=mode===1;
@@ -666,6 +632,12 @@ function setMode(m){
 }
 setMode(1);
 
+function copyCell(a,b){                 // the row below gets what the row above worked out
+  chars[b]=chars[a];Lt[b]=Lt[a];
+  const p=a*4,q=b*4;
+  fgPix[q]=fgPix[p];fgPix[q+1]=fgPix[p+1];fgPix[q+2]=fgPix[p+2];fgPix[q+3]=255;
+  bgPix[q]=bgPix[p];bgPix[q+1]=bgPix[p+1];bgPix[q+2]=bgPix[p+2];bgPix[q+3]=255;
+}
 function put(i,c,r,g,b,fr,fg,fb,lt){
   chars[i]=c;Lt[i]=lt?1:0;
   const j=i*4;fgPix[j]=fr;fgPix[j+1]=fg;fgPix[j+2]=fb;fgPix[j+3]=255;
@@ -742,8 +714,7 @@ function shade(i,m,isTop,wx,wy,wz,nx,ny,d,li,ci){
   else if(m===2)tex=.9+.16*hash2(Math.floor(wx/1.5),Math.floor(wy/1.5));
   else if(m===5)tex=(.94+.09*hash2(Math.floor(wx*.7),Math.floor(wy*.7)))*(.95+.1*vnoise(wx*.04,wy*.04));
   else if(m===9)tex=.82+.3*hash2(Math.floor(wx),Math.floor(wy));
-  else if(m===16)tex=(.9+.2*hash2(Math.floor(wx/3),Math.floor(wy/3)))*(.86+.28*vnoise(wx*.02,wy*.02));
-  else if(m>=12)tex=isTop?1.06:(wz-(ci>=0?Gr[ci]:G)<1.5?.62:.92);   // glass above, shadowed sills below
+  else if(m===12)tex=(.9+.2*hash2(Math.floor(wx/3),Math.floor(wy/3)))*(.86+.28*vnoise(wx*.02,wy*.02));
   else if(m===4){
     const g0=ci>=0?Gr[ci]:G, up=wz-g0, crown=ci>=0?Hm[ci]-g0:2;
     if(!isTop&&up<Math.min(5,crown*.45)){              // the trunk, below where the leaves begin
@@ -785,7 +756,8 @@ function shade(i,m,isTop,wx,wy,wz,nx,ny,d,li,ci){
   if(r>255)r=255;if(g>255)g=255;if(b>255)b=255;
   const lum=(.3*r+.59*g+.11*b)/255;
   const hs=hash2(Math.floor(wx*3)+Math.floor(wz*3)*57,Math.floor(wy*3));
-  let k=Math.floor(Math.pow(lum,GAM)*ramp.length*GAIN*(1-.5*f)+(hs-.5)*((isTop&&!bi)?.5:1.15));
+  const lg=GAM===1?lum:GAM===.5?Math.sqrt(lum):Math.pow(lum,GAM);
+  let k=Math.floor(lg*ramp.length*GAIN*(1-.5*f)+(hs-.5)*((isTop&&!bi)?.5:1.15));
   if(k<0)k=0;else if(k>=ramp.length)k=ramp.length-1;
   const c=(force&&(k>=1||letter))?force:ramp[k];
   if(letter)put(i,c,r,g,b,246,240,220,1);
@@ -850,6 +822,9 @@ let planeLen=.72;
 function render(){
   const px=cam.x,py=cam.y,ez=cam.z,cosY=Math.cos(cam.yaw),sinY=Math.sin(cam.yaw);
   // from a hundred feet up, air that reads as distance at street level reads as milk
+  const still=(px===pcx&&py===pcy&&ez===pcz&&cam.yaw===pcyaw&&cam.pitch===pcpit);
+  pcx=px;pcy=py;pcz=ez;pcyaw=cam.yaw;pcpit=cam.pitch;
+  const step=(still||!easeRows||HR<120)?1:2;
   const upc=ez-groundAt(px,py), up=(upc-6)/140;
   FOGE=FOGK*(1-.78*(up<0?0:up>1?1:up));
   // From a height the ground runs away from you: at a hundred metres up it is seven hundred cells
@@ -873,7 +848,11 @@ function render(){
         let y0=Math.round(horizon-(h-ez)*fyS/tE);if(y0<0)y0=0;
         if(y0<top){
           const hx=px+rdx*tE,hy=py+rdy*tE,nx=side===0?-stepX:0,ny=side===1?-stepY:0;
-          for(let r=y0;r<top;r++){let wz=ez-((r+.5)-horizon)*tE/fyS;if(wz>h)wz=h;shade(r*W+sx,m,0,hx,hy,wz,nx,ny,tE,prev,ci);}
+          for(let r=y0;r<top;r+=step){
+            let wz=ez-((r+.5)-horizon)*tE/fyS;if(wz>h)wz=h;
+            const i=r*W+sx;shade(i,m,0,hx,hy,wz,nx,ny,tE,prev,ci);
+            if(step===2&&r+1<top)copyCell(i,i+W);
+          }
           top=y0;
         }
       }
@@ -881,10 +860,11 @@ function render(){
       if(h<ez){                                              // the top of this cell
         let y0=Math.round(horizon+(ez-h)*fyS/tX);if(y0<0)y0=0;
         if(y0<top){
-          for(let r=y0;r<top;r++){
+          for(let r=y0;r<top;r+=step){
             const den=(r+.5)-horizon;let d=den>0?(ez-h)*fyS/den:tX;
             if(d<tE)d=tE;else if(d>tX)d=tX;
-            shade(r*W+sx,m,1,px+rdx*d,py+rdy*d,h,0,0,d,ci,ci);
+            const i=r*W+sx;shade(i,m,1,px+rdx*d,py+rdy*d,h,0,0,d,ci,ci);
+            if(step===2&&r+1<top)copyCell(i,i+W);
           }
           top=y0;
         }
@@ -895,10 +875,11 @@ function render(){
     }
     if(top>0){
       const az=Math.atan2(rdy,rdx);
-      for(let r=0;r<top;r++){
-        const v=(horizon-(r+.5))/fyS;
-        if(v>0)sky(r*W+sx,az,Math.atan(v));
-        else put(r*W+sx,46,FARG[0],FARG[1],FARG[2],FARG[0]*FGK+FGA,FARG[1]*FGK+FGA,FARG[2]*FGK+FGA);
+      for(let r=0;r<top;r+=step){
+        const v=(horizon-(r+.5))/fyS, i=r*W+sx;
+        if(v>0)sky(i,az,Math.atan(v));
+        else put(i,46,FARG[0],FARG[1],FARG[2],FARG[0]*FGK+FGA,FARG[1]*FGK+FGA,FARG[2]*FGK+FGA);
+        if(step===2&&r+1<top)copyCell(i,i+W);
       }
     }
   }
@@ -990,7 +971,7 @@ function draw(){
 // its own palette: on a map, ground wants to fall back and what you walk on wants to come forward
 const MAPCOL=[[58,84,48],[150,140,124],[126,122,112],[44,84,128],[44,76,46],[96,98,108],
   [150,140,124],[150,140,124],[150,140,124],[110,92,66],[150,140,124],
-  [120,122,128],[128,130,136],[80,86,102],[118,72,70],[166,166,164],[64,70,58]];
+  [120,122,128],[64,70,58]];
 const mapEl=document.getElementById('map'), mctx=mapEl.getContext('2d');
 const MAPN=96, MAPZ=2;                    // pixels across, cells to a pixel: a little under a hundred metres
 mapEl.width=MAPN;mapEl.height=MAPN;
@@ -1273,7 +1254,7 @@ function setTour(v){
   if(!v&&tour&&worldReady){                         // land where you are, rather than back where you started
     let x=Math.min(N-3,Math.max(2,cam.x)),y=Math.min(N-3,Math.max(2,cam.y));
     for(let r=0;r<200;r++){
-      const ok=(a,b)=>{const c=Math.floor(b)*N+Math.floor(a);return!Bi[c]&&Mt[c]!==3&&Mt[c]!==4&&Mt[c]<12;};
+      const ok=(a,b)=>{const c=Math.floor(b)*N+Math.floor(a);return!Bi[c]&&Mt[c]!==3&&Mt[c]!==4;};
       if(ok(x,y))break;
       const a=r*2.4;x=Math.min(N-3,Math.max(2,cam.x+r*.7*Math.cos(a)));y=Math.min(N-3,Math.max(2,cam.y+r*.7*Math.sin(a)));
     }

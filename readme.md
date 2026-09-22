@@ -41,8 +41,15 @@ coarsest, and the footer counts them for you. Drop it a step or two if a walk fe
 shadows, warms everything it touches and lights the windows, which is the best time to walk a high street.
 
 The footer says where each frame went: how long the picture took to work out, and how long to get onto the
-canvas. They are different problems with different answers, and it is worth knowing which one is costing you
-before changing anything.
+canvas. Measured on a real screen at 176,000 half cells, that was 26.4 ms working it out against 7.7 ms
+drawing it, which settled an argument: the cost is in the shading, not in getting type onto a canvas, and a
+faster way of drawing characters would have bought almost nothing. Of the working out, walking the grid is a
+quarter and shading the cells is three quarters, spread evenly rather than piled in one place.
+
+So the price is simply the number of cells, at about a sixth of a microsecond each. Resolution trades against
+frame rate directly: turning Blocks off halves the cells, and a step down in Detail takes off a third. While
+the view is moving the page shades every other row and repeats it, which is a quarter off a moving frame for a
+picture that is sliding past anyway, and full detail returns the moment you stand still.
 
 **Blocks** trades texture for detail. With it on the picture is worked out on twice as many rows and two colours
 are laid in every row of type, the way block characters do it in ANSI art, so vertical detail doubles without the
@@ -203,9 +210,7 @@ records, so a building with no tags is a plausible building rather than the real
   A height map cannot hang a canopy over open air, so a tree is a solid column; the wall of that column is
   drawn as bark below the leaves and the crown is given a ragged outline, which is what makes it read as a
   tree rather than a green slab.
-- Streets wide enough for two cars get a broken white line, and cars are parked along the kerb of the quieter
-  ones, roughly one space in two taken. Both are invented, like the scattered trees. A town with neither looks
-  emptier than any town is.
+- Streets wide enough for two cars get a broken white line.
 - Map data © OpenStreetMap contributors, under the Open Database Licence. Ground heights for a town built by
   the Action come from [OpenTopoData](https://www.opentopodata.org/), which serves EU-DEM (produced using
   Copernicus data funded by the European Union), Mapzen terrain tiles and NASA SRTM; a town built live in the

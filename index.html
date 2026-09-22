@@ -1079,7 +1079,8 @@ async function loadIndex(){                       // towns prepared ahead of tim
 async function loadPlace(q){
   if(busy||!q.trim())return;busy=true;worldReady=false;
   try{
-    const t=towns.find(t=>t.slug===slug(q));
+    // a flight's file is named for the route, not for its title, so match the name and the slug as given too
+    const t=towns.find(t=>t.slug===slug(q)||t.slug===q||t.name===q);
     if(t){
       say('Loading '+t.name);
       const r=await fetch('data/'+t.slug+'.json');

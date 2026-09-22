@@ -126,21 +126,29 @@ const FLIGHT_FILTERS = ['way[building]', 'relation[building]', 'way["building:pa
   'way[natural=water]', 'relation[natural=water]', 'way[waterway]', 'way[landuse=forest]', 'way[natural=wood]',
   'way[highway~"^(motorway|trunk|primary|secondary|tertiary|residential|unclassified|living_street|pedestrian)$"]'];
 
+// The map servers are free and often busy, and a corridor is ten queries rather than one, so a leg is
+// worth asking for again rather than throwing away the nine that worked.
 async function corridor(poly) {
   const ql = '[out:json][timeout:120];(' + FLIGHT_FILTERS.map(f => f + '(poly:"' + poly + '");').join('') + ');out geom;';
   let last = 'no server tried';
-  for (const url of OVERPASS) {
-    try {
-      const r = await fetch(url, {
-        method: 'POST',
-        headers: { 'User-Agent': UA, 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: 'data=' + encodeURIComponent(ql),
-      });
-      const body = await r.text();
-      if (r.ok && body.trimStart().startsWith('{')) return JSON.parse(body).elements || [];
-      last = url + (r.ok ? ' was busy' : ' answered ' + r.status);
-    } catch (e) { last = url + ': ' + e.message; }
-    await sleep(2500);
+  for (let round = 0; round < 3; round++) {
+    for (const url of OVERPASS) {
+      try {
+        const r = await fetch(url, {
+          method: 'POST',
+          headers: { 'User-Agent': UA, 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: 'data=' + encodeURIComponent(ql),
+        });
+        const body = await r.text();
+        if (r.ok && body.trimStart().startsWith('{')) return JSON.parse(body).elements || [];
+        last = url + (r.ok ? ' was busy' : ' answered ' + r.status);
+      } catch (e) { last = url + ': ' + e.message; }
+      await sleep(3000);
+    }
+    if (round < 2) {
+      console.log(`         all mirrors busy (${last}); waiting ${(round + 1) * 20}s and asking again`);
+      await sleep((round + 1) * 20000);
+    }
   }
   throw new Error(last);
 }
@@ -178,11 +186,27 @@ async function buildFlight(f) {
     const nx = -dy / L * f.wide, ny = dx / L * f.wide, ex = dx / L * f.wide * .4, ey = dy / L * f.wide * .4;
     const at = (p, ox, oy) => (p.lat + oy / ky).toFixed(6) + ' ' + (p.lon + ox / kx).toFixed(6);
     const poly = [at(a, nx - ex, ny - ey), at(b, nx + ex, ny + ey), at(b, -nx + ex, -ny + ey), at(a, -nx - ex, -ny - ey)].join(' ');
-    const got = await corridor(poly);
+    // a leg already fetched is kept on disk, so a run that is cut short picks up where it left off
+    const legFile = `scripts/.cache/${f.slug}-${i}.json`;
+    let got;
+    if (!process.env.FORCE && await exists(legFile)) {
+      got = JSON.parse(await readFile(legFile, 'utf8'));
+      console.log(`         leg ${i + 1} of ${f.route.length - 1}: ${got.length} features, from earlier`);
+    } else {
+      try {
+        got = await corridor(poly);
+        await mkdir('scripts/.cache', { recursive: true });
+        await writeFile(legFile, JSON.stringify(got));
+        console.log(`         leg ${i + 1} of ${f.route.length - 1}: ${got.length} features, ${seen.size + got.length} so far`);
+      } catch (e) {
+        console.log(`::warning::leg ${i + 1} of "${f.title}" could not be fetched (${e.message}); the corridor will have a gap there`);
+        got = [];
+      }
+      await sleep(3000);
+    }
     for (const e of got) if (!seen.has(e.type + e.id)) seen.set(e.type + e.id, e);
-    console.log(`         leg ${i + 1} of ${f.route.length - 1}: ${got.length} features, ${seen.size} so far`);
-    await sleep(2500);
   }
+  if (!seen.size) throw new Error('not one leg of the corridor could be fetched');
   const elements = [...seen.values()].map(e => {
     const o = slim(e);
     if (o.geometry) o.geometry = thin(o.geometry, f.cell / 2).map(coarse);

@@ -40,11 +40,16 @@ coarsest, and the footer counts them for you. Drop it a step or two if a walk fe
 **Daylight** steps round to **Evening** and then **Night**. Evening puts the sun low in the west, throws long
 shadows, warms everything it touches and lights the windows, which is the best time to walk a high street.
 
+The footer says where each frame went: how long the picture took to work out, and how long to get onto the
+canvas. They are different problems with different answers, and it is worth knowing which one is costing you
+before changing anything.
+
 **Blocks** trades texture for detail. With it on the picture is worked out on twice as many rows and two colours
 are laid in every row of type, the way block characters do it in ANSI art, so vertical detail doubles without the
 type getting smaller. The character texture goes, but shop signs keep their letters and read more clearly than
 before, since a letter in either half of a cell claims the whole cell. It costs about 1.8 times the work a frame
-and needs colour on.
+and needs colour on. Pressing it once more gives **Blocks + letters**: the same twice-as-fine colour with every
+character kept, so the picture stays made of type.
 
 ## Set it up on GitHub Pages
 

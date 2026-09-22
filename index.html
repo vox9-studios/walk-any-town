@@ -647,7 +647,7 @@ function shadowMap(az,el){
 /* ---------- the frame: arrays of characters and colours ---------- */
 let W=0,H=0,chars,fgPix,bgPix,cw=6,chh=10;
 let HR=0,chhR=10,Lt;              // rows of picture, and how tall one is: with blocks on, two to a row of type
-let time=0, colour=true, blocks=false, aw=.01, ah=.01;
+let time=0, colour=true, blocks=0, aw=.01, ah=.01;
 const MAXD=380;
 const SUN={az:Math.PI/2+.65,el:.75,map:null}, MOON={az:-Math.PI/2-.5,el:.55,map:null},
       DUSK={az:Math.PI-.16,el:.14,map:null};      // low, and in the west, where the sun goes
@@ -937,7 +937,7 @@ function setup(){
   }
   ctx.textBaseline='middle';
   ox=(cv.width-W*cw)/2;oy=(cv.height-H*chh)/2;
-  HR=blocks?H*2:H;chhR=blocks?chh/2:chh;
+  HR=blocks?H*2:H;chhR=blocks?chh/2:chh;   // blocks of either kind work the picture out on twice the rows
   chars=new Uint8Array(W*HR);Lt=new Uint8Array(W*HR);
   fgPix=new Uint8ClampedArray(W*HR*4);bgPix=new Uint8ClampedArray(W*HR*4);
   dch=new Uint8Array(W*H);dfg=new Uint8ClampedArray(W*H*4);
@@ -959,7 +959,10 @@ function draw(){
       // the shape is carried by the colour alone now, so the only letters left are the shop signs:
       // a letter in either half of a cell takes the whole cell, which keeps the fascias readable
       for(let y=0;y<H;y++)for(let x=0;x<W;x++){
-        const d=y*W+x, a=(y*2)*W+x, b=a+W, k=Lt[a]?a:Lt[b]?b:-1, j=d*4;
+        const d=y*W+x, a=(y*2)*W+x, b=a+W, j=d*4;
+        // a letter in either half claims the cell; with letters kept, so does whatever the top half holds
+        let k=Lt[a]?a:Lt[b]?b:-1;
+        if(k<0&&blocks===2)k=a;
         dch[d]=k<0?32:chars[k];
         if(k<0){dfg[j]=dfg[j+1]=dfg[j+2]=dfg[j+3]=0;}
         else{const m=k*4;dfg[j]=fgPix[m];dfg[j+1]=fgPix[m+1];dfg[j+2]=fgPix[m+2];dfg[j+3]=255;}
@@ -1285,16 +1288,17 @@ setTour(tour);
 bTour.onclick=()=>setTour(!tour);
 bColour.onclick=()=>{
   colour=!colour;bColour.textContent=colour?'Colour on':'Colour off';bColour.setAttribute('aria-pressed',String(colour));
-  if(!colour&&blocks)setBlocks(false);       // without colour there is nothing for the halves to say
+  if(!colour&&blocks)setBlocks(0);           // without colour there is nothing for the halves to say
 };
 const bBlocks=document.getElementById('bBlocks');
+const BLOCKNAME=['Blocks off','Blocks on','Blocks + letters'];
 function setBlocks(v){
-  blocks=v;
-  bBlocks.textContent=v?'Blocks on':'Blocks off';
-  bBlocks.setAttribute('aria-pressed',String(v));
+  blocks=v;                                   // 0 letters, 1 two colours a cell, 2 both
+  bBlocks.textContent=BLOCKNAME[v];
+  bBlocks.setAttribute('aria-pressed',String(v>0));
   setup();
 }
-bBlocks.onclick=()=>{if(!blocks&&!colour)bColour.onclick();setBlocks(!blocks);};
+bBlocks.onclick=()=>{if(!blocks&&!colour)bColour.onclick();setBlocks((blocks+1)%3);};
 const bDay=document.getElementById('bDay');
 bDay.onclick=()=>{
   setMode((mode+1)%3);                            // daylight, then evening, then night
@@ -1354,14 +1358,21 @@ hintEl.textContent=baseHint;
 
 /* ---------- loop ---------- */
 const statEl=document.getElementById('stat'),streetEl=document.getElementById('street');
-let last=0,fpsAcc=0,fpsN=0,statT=0;
+let last=0,fpsAcc=0,fpsN=0,statT=0,tWork=0,tDraw=0;
+const clock=(typeof performance!=='undefined'&&performance.now)?()=>performance.now():()=>Date.now();
 function frame(now){
   const dt=Math.min(.05,(now-last)/1000||0);last=now;time+=dt;
   if(ready&&worldReady){
-    update(dt);render();draw();drawMap();
+    update(dt);
+    const t0=clock();render();
+    const t1=clock();draw();drawMap();
+    tWork+=t1-t0;tDraw+=clock()-t1;
     fpsAcc+=dt;fpsN++;statT+=dt;
     if(statT>.5){
-      statEl.textContent=(W*HR).toLocaleString()+(blocks?' half cells':' characters')+' a frame, '+Math.round(fpsN/fpsAcc)+' fps.';
+      statEl.textContent=(W*HR).toLocaleString()+(blocks?' half cells':' characters')+' a frame: '+
+        (tWork/fpsN).toFixed(1)+' ms working it out, '+(tDraw/fpsN).toFixed(1)+' ms drawing it, '+
+        Math.round(fpsN/fpsAcc)+' fps.';
+      tWork=0;tDraw=0;
       const x=Math.floor(walker.x),y=Math.floor(walker.y),n=(x>=0&&y>=0&&x<N&&y<N)?Rn[y*N+x]:0;
       if(n&&!tour)streetEl.textContent=names[n]+'.';
       statT=0;fpsAcc=0;fpsN=0;

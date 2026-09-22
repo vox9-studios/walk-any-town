@@ -255,7 +255,7 @@ function buildFromOSM(data,lat0,lon0){
     const t=e.tags||{};
     if(e.type==='node'){
       if(t.natural==='tree')trees.push(P(e));
-      else if(t.name&&(t.shop||t.amenity))pois.push({p:P(e),name:t.name,kind:(t.shop||t.amenity||'').toLowerCase()});
+      else if(t.name&&(t.shop||t.amenity))pois.push({p:P(e),name:t.name,kind:(t.shop||t.amenity||'').toLowerCase(),trade:!!t.shop});
       continue;
     }
     const rings=e.type==='way'?(e.geometry?[e.geometry.map(P)]:[]):(e.members||[]).filter(m=>m.geometry).map(m=>m.geometry.map(P));
@@ -387,14 +387,19 @@ function buildFromOSM(data,lat0,lon0){
     // roof: flat behind a parapet, hipped, or a ridge running along the longer side
     const rs=(t['roof:shape']||'').toLowerCase();
     const square=Math.min(fw,fd)/Math.max(fw,fd)>.82;
-    let prof=rs?(/(flat|skillion|shed|sawtooth)/.test(rs)?0:/(hip|mansard|pyramid|dome|cone|onion)/.test(rs)?1:2)
+    let prof=rs?(/(flat|skillion|shed|sawtooth)/.test(rs)?0
+                :/(dome|round|onion)/.test(rs)?4
+                :/(hip|mansard|pyramid|cone|spire|tent)/.test(rs)?1:2)
               :small?0:church?2:(lv>=5||(big&&lv>=3&&Math.min(fw,fd)>26))?0:2;
     if(prof===2&&square&&!church)prof=1;
     if(prof===2)prof=fw>=fd?2:3;                          // 2: the ridge runs east-west, 3: north-south
-    const slope=church?1.1:house?.85:small?.4:.62;
     const rh=parseFloat(t['roof:height']), rlv=parseFloat(t['roof:levels'])||0;
     const span=Math.min(fw,fd)/2;
-    const cap=rh>0?rh/CELL:rlv>0?rlv*5.2:Math.min(span*slope,church?14:house?11:8);
+    const pitch=church?1.1:house?.85:small?.4:.62;
+    const cap=rh>0?rh/CELL:rlv>0?rlv*5.2:Math.min(span*pitch,church?14:house?11:8);
+    // Where the map states how tall the roof is, the slope has to be whatever reaches it. Big Ben says
+    // pyramidal, 35 m: on a tower twelve metres across, a default pitch would raise the spire three.
+    const slope=(rh>0||rlv>0)?cap/Math.max(1,span):pitch;
     let ri=ROOFMAT[(t['roof:material']||'').toLowerCase()];
     if(ri===undefined&&prof!==0)ri=localRi;                  // a flat roof is covered its own way
     if(ri===undefined)ri=prof===0?3:church?1:hs2<.5?0:1;
@@ -408,7 +413,7 @@ function buildFromOSM(data,lat0,lon0){
     const want=church?9:shop?8:house?6.4:7;               // a window bay every three or four metres
     const info={
       style, tint:col?.95+.1*hs2:.86+.24*hs2, col, roofCol:parseCol(t['roof:colour'])||ROOF[ri],
-      prof, slope, cap, church, small, house, shop, base, wall,
+      prof, slope, cap, span, church, small, house, shop, base, wall,
       x0, y0, x1, y1, wx:fw, wy:fd, bayX:bayOf(fw,want), bayY:bayOf(fd,want),
       fh, g0:church?wall:Math.min(wall,shop?fh*1.15:fh),  // shops carry a taller ground floor
       tower:0,
@@ -429,7 +434,7 @@ function buildFromOSM(data,lat0,lon0){
   for(const p of pois){                                 // shops mapped as points: mark the building they sit in
     const x=Math.floor(p.p[0]),y=Math.floor(p.p[1]);if(x<0||y<0||x>=N||y>=N)continue;
     const B=bld[Bi[y*N+x]];
-    if(B){
+    if(B&&(p.trade||TRADE[p.kind])){                    // a clock or a bench does not make a shopfront
       B.shop=true;
       if(!B.sign)B.sign=signOf(p.name);
       if(TRADE[p.kind])B.signCol=TRADE[p.kind];
@@ -473,7 +478,10 @@ function buildFromOSM(data,lat0,lon0){
     const b=Bi[i];if(!b)continue;
     const B=bld[b];
     if(B.prof===0){if(D[i]<1.7)Hm[i]+=.55;}             // flat, with a parapet standing round the edge
-    else{
+    else if(B.prof===4){                                 // a dome: round, not pointed
+      const q=1-Math.min(1,D[i]/Math.max(1,B.span));
+      Hm[i]+=B.cap*Math.sqrt(1-q*q);
+    }else{
       const r=((B.prof===1?D[i]:B.prof===2?Dy[i]:Dx[i])-.5)*B.slope;
       Hm[i]+=r<0?0:r<B.cap?r:B.cap;
     }

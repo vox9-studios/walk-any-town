@@ -280,6 +280,24 @@ function buildFromOSM(data,lat0,lon0){
     const ni=nameIdx(r.t.name),m=SURF[r.t.surface]!==undefined?SURF[r.t.surface]:5;
     fillLine(r.pts,M(roadWidth(r.t)),c=>{Mt[c]=m;Hm[c]=Gr[c];if(ni)Rn[c]=ni;});
   }
+  // Where anyone has said what a building is made of, take it as the local way of building and let the
+  // untagged majority follow: a handful of stone houses in a stone town beats a guess drawn from England.
+  const vernacular=read=>{
+    const tally=new Map();let seen=0;
+    for(const b of buildings){
+      if(/garage|shed|roof|hut|carport|kiosk|cabin/.test((b.t.building||'').toLowerCase()))continue;
+      const v=read(b.t);
+      if(v){seen++;tally.set(v,(tally.get(v)||0)+1);}
+    }
+    let best=null,n=0;
+    for(const pair of tally)if(pair[1]>n){n=pair[1];best=pair[0];}
+    return (n>=3&&n>=seen*.5)?best:null;     // enough of them, and agreeing with each other
+  };
+  const localWall=vernacular(t=>(t['building:material']||t['building:facade:material']||'').toLowerCase()),
+        localRoof=vernacular(t=>(t['roof:material']||'').toLowerCase());
+  const localStyle=localWall!==null?WALLMAT[localWall]:undefined;
+  const localRi=localRoof!==null?ROOFMAT[localRoof]:undefined;
+
   // buildings: what the map says each one is made of, how tall it stands, and what shape its roof takes
   for(const b of buildings){
     const t=b.t,hs=hash2(b.id%100003,7),hs2=hash2(b.id%100003,19),hs3=hash2(b.id%100003,41);
@@ -313,10 +331,12 @@ function buildFromOSM(data,lat0,lon0){
     const span=Math.min(fw,fd)/2;
     const cap=rh>0?rh/CELL:rlv>0?rlv*5.2:Math.min(span*slope,church?14:house?11:8);
     let ri=ROOFMAT[(t['roof:material']||'').toLowerCase()];
+    if(ri===undefined&&prof!==0)ri=localRi;                  // a flat roof is covered its own way
     if(ri===undefined)ri=prof===0?3:church?1:hs2<.5?0:1;
     let style=WALLMAT[(t['building:material']||t['building:facade:material']||'').toLowerCase()];
+    if(style===undefined&&!small&&!church)style=localStyle;
     if(style===undefined)style=church?1:small?7:(big&&lv>=4)?10:hs2<.62?6:hs2<.88?7:8;
-    const col=parseCol(t['building:colour']);
+    const col=parseCol(t['building:colour']);                // only its own: a colour is not handed down
     const shop=!!(t.shop||/retail|commercial|kiosk/.test(kind)||/cafe|restaurant|pub|bank|fast_food|bar|pharmacy|post_office|cinema|theatre/.test(t.amenity||''));
     const fh=church?wall:Math.min(8,Math.max(4.6,wall/lv));   // one storey, in cells
     const bayOf=(len,want)=>len/Math.max(1,Math.round(len/want));

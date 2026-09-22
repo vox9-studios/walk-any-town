@@ -33,6 +33,11 @@ for twenty seconds before the next: the Eiffel Tower, then the river by the Whee
 Type a place, pick a flight, or touch the view, and the front screen stands aside: the search box moves up into
 the header and the controls for moving about appear beside it.
 
+A link that names a place, such as `.../#agde-france`, lands in that place rather than on the front screen,
+which is what a link ought to do. The title is how you get back: click **Walk any town, in letters** and the
+address is cleared and the showcase starts again. Worth knowing, because walking about leaves the last place
+in the address bar, so reloading returns there rather than to the front.
+
 ## Walking about
 
 `W` `A` `S` `D` or the arrow keys walk, drag to look around, space jumps. Hold shift, or press **Run off** so it

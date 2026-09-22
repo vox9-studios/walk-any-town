@@ -25,6 +25,8 @@ body{
 }
 header{display:flex;flex-wrap:wrap;gap:.45rem .8rem;align-items:center;padding:.55rem .9rem}
 h1{font-size:1rem;line-height:1.2;margin:0;font-weight:700}
+h1 button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer;text-align:left}
+h1 button:hover{text-decoration:underline}
 form{display:flex;gap:.4rem;flex:1 1 16rem;min-width:0}
 input{
   font:inherit;font-size:.85rem;color:inherit;background:transparent;flex:1;min-width:0;
@@ -86,7 +88,7 @@ a{color:inherit}
 </head>
 <body>
 <header>
-  <h1>Walk any town, in letters</h1>
+  <h1><button id="home" type="button" title="Back to the front screen">Walk any town, in letters</button></h1>
   <form id="go">
     <input id="q" aria-label="Street or town" placeholder="Street or town" value="High Street, East Grinstead" autocomplete="off" enterkeyhint="go" list="towns">
     <datalist id="towns"></datalist>
@@ -1406,6 +1408,12 @@ function showFront(on){
   else{headerEl.insertBefore(formEl,controlsEl);msgEl.textContent='';}
 }
 function leaveFront(){if(demo){showFront(false);setTour(false);}}
+document.getElementById('home').addEventListener('click',()=>{
+  if(demo||busy)return;
+  try{history.replaceState(null,'',location.pathname+location.search);}catch(e){}
+  showFront(true);
+  demoIdx=0;runDemo(0);
+});
 
 async function runDemo(i){
   if(demoBusy||busy)return;

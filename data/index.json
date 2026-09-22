@@ -87,5 +87,70 @@
   },
   "cell": 0,
   "route": null
+ },
+ {
+  "slug": "piazza-navona-rome-italy",
+  "name": "Piazza Navona, Rome, Italy",
+  "lat": 41.8989,
+  "lon": 12.4731,
+  "half": 350,
+  "start": null,
+  "cell": 0,
+  "route": null
+ },
+ {
+  "slug": "thames-eye-to-o2",
+  "name": "The Thames, Westminster to the O2",
+  "lat": 51.50075,
+  "lon": -0.06175,
+  "half": 5100,
+  "cell": 8,
+  "start": null,
+  "route": [
+   {
+    "lat": 51.497,
+    "lon": -0.127
+   },
+   {
+    "lat": 51.5015,
+    "lon": -0.1215
+   },
+   {
+    "lat": 51.5045,
+    "lon": -0.118
+   },
+   {
+    "lat": 51.508,
+    "lon": -0.105
+   },
+   {
+    "lat": 51.5085,
+    "lon": -0.089
+   },
+   {
+    "lat": 51.506,
+    "lon": -0.0755
+   },
+   {
+    "lat": 51.503,
+    "lon": -0.06
+   },
+   {
+    "lat": 51.5065,
+    "lon": -0.038
+   },
+   {
+    "lat": 51.5045,
+    "lon": -0.0195
+   },
+   {
+    "lat": 51.493,
+    "lon": -0.014
+   },
+   {
+    "lat": 51.498,
+    "lon": 0.0035
+   }
+  ]
  }
 ]

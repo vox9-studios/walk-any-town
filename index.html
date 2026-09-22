@@ -152,8 +152,11 @@ function ground(ele){
   return top*.1;
 }
 // materials: 0 grass 1 stone 2 paving 3 water 4 tree 5 asphalt 6 brick 7 render 8 timber frame 9 dirt 10 concrete
-const MAT=[[96,150,62],[172,166,150],[176,170,158],[34,74,112],[48,104,54],[78,80,86],[170,98,72],[228,220,200],[234,228,212],[150,122,84],[152,152,148]];
-const RAMPS=[".,:;vwVW",".:;rtIHM#",".,:;=xXH"," .-~~=zZ",".:^itAY#",".,:;-=+x",".:;=rtHM#",".,:;ilIL",".,:;ilIL",".,:oaeSB",".,:;=+oX"]
+// 11 road paint, then four cars: silver, dark blue, red, white
+const MAT=[[96,150,62],[172,166,150],[176,170,158],[34,74,112],[48,104,54],[78,80,86],[170,98,72],[228,220,200],[234,228,212],[150,122,84],[152,152,148],
+  [206,202,184],[172,176,180],[48,60,94],[138,44,40],[230,230,226]];
+const RAMPS=[".,:;vwVW",".:;rtIHM#",".,:;=xXH"," .-~~=zZ",".:^itAY#",".,:;-=+x",".:;=rtHM#",".,:;ilIL",".,:;ilIL",".,:oaeSB",".,:;=+oX",
+  "..::==##",".,:;=coO",".,:;=coO",".,:;=coO",".,:;=coO"]
   .map(s=>Array.from(s,c=>c.charCodeAt(0)));
 // roof coverings: clay tile, slate, brown tile, felt, thatch, metal
 const ROOF=[[156,86,60],[86,90,104],[124,98,76],[66,68,72],[190,164,110],[138,146,152]], ROOFR=Array.from(".:~=unUM#",c=>c.charCodeAt(0));
@@ -166,6 +169,7 @@ const WALLMAT={brick:6,bricks:6,brickwork:6,red_brick:6,brick_block:6,clay:6,til
   concrete:10,cement:10,cement_block:10,metal:10,steel:10,glass:10,aluminium:10,plastic:10,
   plaster:7,render:7,stucco:7,roughcast:7,pebbledash:7,painted:7,cob:7,
   wood:8,timber:8,timber_framing:8,half_timbered:8,wattle_and_daub:8};
+const BARK=[78,62,46];
 const SIGNS=[[28,60,52],[110,30,34],[24,40,88],[40,40,44],[92,62,20]];
 // a shop's trade picks the colour of its fascia board, the way real signs run to type
 const TRADE={pub:[38,56,42],bar:[38,56,42],biergarten:[38,56,42],restaurant:[92,34,34],cafe:[84,56,32],
@@ -508,8 +512,10 @@ function buildFromOSM(data,lat0,lon0){
     if(cx<8||cy<8||cx>=N-8||cy>=N-8||Mt[cy*N+cx]!==0)return;
     const gb=Gr[cy*N+cx];
     for(let y=Math.floor(ty-rad);y<=ty+rad;y++)for(let x=Math.floor(tx-rad);x<=tx+rad;x++){
-      const dd=Math.hypot(x+.5-tx,y+.5-ty),c=y*N+x;if(dd>=rad||Bi[c]||!(Mt[c]===0||Mt[c]===4||(street&&Mt[c]===2)))continue;
-      const hh=gb+th*Math.sqrt(1-dd*dd/(rad*rad))*(.85+.3*hash2(x,y));
+      const dd=Math.hypot(x+.5-tx,y+.5-ty),c=y*N+x;
+      const rr=rad*(.78+.44*vnoise(x*.42+tx*.27,y*.42+ty*.27));   // a ragged outline, not a dome
+      if(dd>=rr||Bi[c]||!(Mt[c]===0||Mt[c]===4||(street&&Mt[c]===2)))continue;
+      const hh=gb+th*Math.sqrt(Math.max(0,1-dd*dd/(rr*rr)))*(.82+.36*hash2(x,y));
       if(hh>Hm[c]){Hm[c]=hh;Mt[c]=4;}
     }
   };
@@ -518,11 +524,67 @@ function buildFromOSM(data,lat0,lon0){
   const loose=Math.round(N*N/10000);   // trees nobody has mapped, sown thinly over open grass
   for(let k=0;k<5000;k++){const x=rnd()*N,y=rnd()*N,c=Math.floor(y)*N+Math.floor(x);if(wood[c]||k<loose)tree(x,y);}
   if(aim&&best>60){spawn.x=AX;spawn.y=AY;}          // asked to start somewhere with no named street near it
+  // A street with no markings and nothing parked on it reads as a model of a street. Both are invented,
+  // like the scattered trees, but a town without them looks emptier than any town is.
+  const runOf=pts=>{
+    const seg=[],cum=[0];let total=0;
+    for(let i=0;i+1<pts.length;i++){const l=Math.hypot(pts[i+1][0]-pts[i][0],pts[i+1][1]-pts[i][1]);seg.push(l);cum.push(total+=l);}
+    return{seg,cum,total};
+  };
+  for(const r of roads){                              // a broken white line where two cars could pass
+    if(!car(r))continue;
+    const wM=roadWidth(r.t);
+    if(wM<5.6||r.t.oneway==='yes'||r.pts.length<2)continue;
+    const run=runOf(r.pts);if(run.total<20)continue;
+    fillLine(r.pts,1.1,(c,i,t)=>{
+      if(Mt[c]!==5)return;
+      const along=(run.cum[i]+t*run.seg[i])*CELL;      // metres, for the dashes
+      if(along%7<3.2)Mt[c]=11;
+    });
+  }
+  const CARCOL=[12,13,14,15], PARKABLE=/^(residential|unclassified|living_street|tertiary|service)$/;
+  const putCar=(px,py,ux,uy,m)=>{
+    const nx=-uy,ny=ux,cells=[],high=[];
+    for(let a=-4.1;a<=4.1;a+=.5)for(let b=-1.6;b<=1.6;b+=.5){
+      const x=Math.floor(px+ux*a+nx*b),y=Math.floor(py+uy*a+ny*b);
+      if(x<1||y<1||x>=N-1||y>=N-1)return false;
+      const c=y*N+x;
+      if(Bi[c]||(Mt[c]!==5&&Mt[c]!==11))return false; // only on the carriageway, never half on a kerb
+      cells.push(c);high.push(Math.abs(a)<1.9?3:2.3); // the cabin stands above the bonnet and the boot
+    }
+    for(let k=0;k<cells.length;k++){
+      const c=cells[k],h=Gr[c]+high[k];
+      if(h>Hm[c]){Mt[c]=m;Hm[c]=h;}
+    }
+    return true;
+  };
+  for(const r of roads){
+    if(!car(r)||!PARKABLE.test(r.t.highway))continue;
+    const wM=roadWidth(r.t);if(wM<6)continue;
+    const off=M(wM/2-1.2), probe=M(wM/2+1.4);
+    const pts=r.pts;let walked=0;
+    for(let i=0;i+1<pts.length;i++){
+      const ax=pts[i][0],ay=pts[i][1],L=Math.hypot(pts[i+1][0]-ax,pts[i+1][1]-ay);
+      if(L<2){walked+=L;continue;}
+      const ux=(pts[i+1][0]-ax)/L,uy=(pts[i+1][1]-ay)/L,nx=-uy,ny=ux;
+      for(let d=18-(walked%18);d<L-4;d+=18){
+        for(const side of[1,-1]){
+          if(rnd()<.45)continue;                      // not every space is taken
+          const ex=Math.floor(ax+ux*d+nx*probe*side),ey=Math.floor(ay+uy*d+ny*probe*side);
+          if(ex<0||ey<0||ex>=N||ey>=N)continue;
+          if(Mt[ey*N+ex]===5||Mt[ey*N+ex]===11)continue;   // still road out there: this is a junction
+          putCar(ax+ux*d+nx*off*side,ay+uy*d+ny*off*side,ux,uy,CARCOL[Math.floor(rnd()*4)]);
+        }
+      }
+      walked+=L;
+    }
+  }
+
   // stand on the nearest open ground to the chosen spot
   let sx=Math.floor(spawn.x),sy=Math.floor(spawn.y),found=false;
   for(let r=0;r<300&&!found;r++)for(let a=0;a<Math.max(1,r*6)&&!found;a++){
     const x=Math.floor(spawn.x+r*Math.cos(a/(r||1))),y=Math.floor(spawn.y+r*Math.sin(a/(r||1)));
-    if(x>2&&y>2&&x<N-2&&y<N-2&&!Bi[y*N+x]&&Mt[y*N+x]!==4&&Mt[y*N+x]!==3){sx=x;sy=y;found=true;}
+    if(x>2&&y>2&&x<N-2&&y<N-2&&!Bi[y*N+x]&&Mt[y*N+x]!==4&&Mt[y*N+x]!==3&&Mt[y*N+x]<12){sx=x;sy=y;found=true;}
   }
   spawn.x=sx+.5;spawn.y=sy+.5;
   worldReady=true;
@@ -631,11 +693,18 @@ function shade(i,m,isTop,wx,wy,wz,nx,ny,d,li,ci){
         else{base=[58,80,108];tex=(fz>.6?1.25:.95);force=46;}
       }
     }
-  }else if(m===0)tex=(.78+.4*hash2(Math.floor(wx*1.7),Math.floor(wy*1.7)))*(.9+.2*vnoise(wx*.06,wy*.06));
+  }else if(m===0)tex=(.87+.24*hash2(Math.floor(wx*1.1),Math.floor(wy*1.1)))*(.88+.24*vnoise(wx*.05,wy*.05));
   else if(m===2)tex=.9+.16*hash2(Math.floor(wx/1.5),Math.floor(wy/1.5));
-  else if(m===5)tex=.9+.16*hash2(Math.floor(wx*2),Math.floor(wy*2));
+  else if(m===5)tex=(.94+.09*hash2(Math.floor(wx*.7),Math.floor(wy*.7)))*(.95+.1*vnoise(wx*.04,wy*.04));
   else if(m===9)tex=.82+.3*hash2(Math.floor(wx),Math.floor(wy));
-  else if(m===4)tex=(.6+.55*hash2(Math.floor(wx*2)+Math.floor(wz*2)*31,Math.floor(wy*2)))*(.8+.4*hash2(Math.floor(wx/9),Math.floor(wy/9)));
+  else if(m>=12)tex=isTop?1.06:(wz-(ci>=0?Gr[ci]:G)<1.5?.62:.92);   // glass above, shadowed sills below
+  else if(m===4){
+    const g0=ci>=0?Gr[ci]:G, up=wz-g0, crown=ci>=0?Hm[ci]-g0:2;
+    if(!isTop&&up<Math.min(5,crown*.45)){              // the trunk, below where the leaves begin
+      base=BARK;ramp=RAMPS[9];
+      tex=.78+.44*hash2(Math.floor(wx*1.6),Math.floor(wy*1.6)+Math.floor(wz*1.2)*13);
+    }else tex=(.6+.55*hash2(Math.floor(wx*2)+Math.floor(wz*2)*31,Math.floor(wy*2)))*(.8+.4*hash2(Math.floor(wx/9),Math.floor(wy/9)));
+  }
 
   // sun or moon, with cast shadow
   let lam=isTop?LSIN:Math.max(0,nx*LDX+ny*LDY)*LCOS;
@@ -670,7 +739,7 @@ function shade(i,m,isTop,wx,wy,wz,nx,ny,d,li,ci){
   if(r>255)r=255;if(g>255)g=255;if(b>255)b=255;
   const lum=(.3*r+.59*g+.11*b)/255;
   const hs=hash2(Math.floor(wx*3)+Math.floor(wz*3)*57,Math.floor(wy*3));
-  let k=Math.floor(Math.pow(lum,GAM)*ramp.length*GAIN*(1-.5*f)+(hs-.5)*1.2);
+  let k=Math.floor(Math.pow(lum,GAM)*ramp.length*GAIN*(1-.5*f)+(hs-.5)*((isTop&&!bi)?.5:1.15));
   if(k<0)k=0;else if(k>=ramp.length)k=ramp.length-1;
   const c=(force&&(k>=1||letter))?force:ramp[k];
   if(letter)put(i,c,r,g,b,246,240,220,1);
@@ -857,7 +926,8 @@ function draw(){
 /* ---------- the little round map, looking straight down, with the way you face at the top ---------- */
 // its own palette: on a map, ground wants to fall back and what you walk on wants to come forward
 const MAPCOL=[[58,84,48],[150,140,124],[126,122,112],[44,84,128],[44,76,46],[96,98,108],
-  [150,140,124],[150,140,124],[150,140,124],[110,92,66],[150,140,124]];
+  [150,140,124],[150,140,124],[150,140,124],[110,92,66],[150,140,124],
+  [120,122,128],[128,130,136],[80,86,102],[118,72,70],[166,166,164]];
 const mapEl=document.getElementById('map'), mctx=mapEl.getContext('2d');
 const MAPN=96, MAPZ=2;                    // pixels across, cells to a pixel: a little under a hundred metres
 mapEl.width=MAPN;mapEl.height=MAPN;

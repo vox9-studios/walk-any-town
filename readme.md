@@ -138,6 +138,12 @@ records, so a building with no tags is a plausible building rather than the real
   water, are left as the roads they are.
 - The trees you see are the ones the map records, the woods it outlines, and a thin scatter over open grass,
   about one to every hundred metres square. Streets are not meant to disappear behind invented foliage.
+  A height map cannot hang a canopy over open air, so a tree is a solid column; the wall of that column is
+  drawn as bark below the leaves and the crown is given a ragged outline, which is what makes it read as a
+  tree rather than a green slab.
+- Streets wide enough for two cars get a broken white line, and cars are parked along the kerb of the quieter
+  ones, roughly one space in two taken. Both are invented, like the scattered trees. A town with neither looks
+  emptier than any town is.
 - Map data © OpenStreetMap contributors, under the Open Database Licence. Ground heights for a town built by
   the Action come from [OpenTopoData](https://www.opentopodata.org/), which serves EU-DEM (produced using
   Copernicus data funded by the European Union), Mapzen terrain tiles and NASA SRTM; a town built live in the

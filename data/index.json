@@ -109,6 +109,16 @@
   "route": null
  },
  {
+  "slug": "lower-manhattan-new-york-usa",
+  "name": "Lower Manhattan, New York, USA",
+  "lat": 40.7127,
+  "lon": -74.0134,
+  "half": 450,
+  "start": null,
+  "cell": 2,
+  "route": null
+ },
+ {
   "slug": "thames-eye-to-o2",
   "name": "The Thames, Westminster to the O2",
   "lat": 51.50075,

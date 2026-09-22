@@ -27,7 +27,8 @@ Streets, buildings and the shape of the ground come from open map data.
 
 Arriving with no place asked for puts up the front screen: the title, the search box in the middle, and a city
 turning slowly behind it. Each showcase is a real place from `data/`, flown on an ellipse around one landmark
-for twenty seconds before the next: the Eiffel Tower, then the river by the Wheel, then Notre-Dame. The list is
+for twenty-two seconds before the next: the towers of Lower Manhattan, then the river by the Wheel, then
+Notre-Dame. It runs at the finest setting, in blocks, in the evening light. The list is
 `SHOWCASE` in the page, each entry naming a slug, what to circle, how far out, how high and how long.
 
 Type a place, pick a flight, or touch the view, and the front screen stands aside: the search box moves up into
@@ -191,6 +192,11 @@ its map. The page reads, and falls back sensibly without:
 | The shape of a modelled building | `building:part` with its own `height`, `roof:shape` and colours |
 | Shopfronts | `shop`, `amenity`, `name` |
 | Streets | `width`, `lanes`, `oneway`, `surface`, `highway` |
+
+Nor is a part that begins well above the ground with nothing under it. The London Eye has each of its
+capsules modelled where it hangs on the wheel, and a height map cannot hang anything: drawn from the pavement
+they become a ring of scaffolding poles round the wheel. A part is kept only where there is something beneath
+it to stand on, which keeps the pinnacles on a roof and drops the capsules in the air.
 
 An outline drawn round its own parts is not raised. The Simple 3D Buildings scheme puts a polygon round a
 modelled building and tags it with the whole height: the Eiffel Tower is 174 m square and 330 m tall as an

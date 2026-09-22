@@ -463,6 +463,15 @@ function buildFromOSM(data,lat0,lon0){
     info.part=isPart;
     if(isPart&&!(parseFloat(t.height)>0)&&!(parseFloat(t['building:levels'])>0))continue;   // no height, nothing to say
     if(!isPart&&partAt.length&&holdsParts(x0,y0,x1,y1))continue;                            // an outline round its parts
+    // A part that begins well above the ground has to be standing on something. Where there is nothing
+    // under it, it is a detail no height map can hold: the London Eye's capsules are each modelled where
+    // they hang on the wheel, and drawn from the pavement they become a ring of scaffolding poles.
+    const minH=parseFloat(t.min_height)||((parseFloat(t['building:min_level'])||0)*3);
+    if(isPart&&minH>4){
+      const mx=Math.floor((x0+x1)/2), my=Math.floor((y0+y1)/2);
+      const under=(mx>=0&&my>=0&&mx<N&&my<N)?Hm[my*N+mx]:G;
+      if(under<base+minH/CELL*.6)continue;
+    }
     const idx=bld.length;if(idx>65000)break;bld.push(info);
     fillPoly(b.rings,c=>{Bi[c]=idx;Mt[c]=info.style;Hm[c]=top;Ev[c]=top;});
   }
@@ -1404,8 +1413,8 @@ hintEl.textContent=baseHint;
 
 /* ---------- the front screen: a city turning behind the search box ---------- */
 const SHOWCASE=[
-  {slug:'eiffel-tower-paris-france',  note:'Paris, circling the Eiffel Tower',
-   focus:[48.85840,2.29450], radius:390, ratio:.76, height:235, aim:120, secs:22},
+  {slug:'lower-manhattan-new-york-usa', note:'New York, round the towers of Lower Manhattan',
+   focus:[40.71270,-74.01340], radius:400, ratio:.78, height:430, aim:210, secs:22},
   {slug:'parliament-square-london-uk', note:'London, over the river by the Wheel',
    focus:[51.50150,-0.12150], radius:330, ratio:.8, height:190, aim:45, secs:22},
   {slug:'ile-de-la-cite-paris-france', note:'Paris again, around Notre-Dame',
@@ -1495,6 +1504,8 @@ loadIndex().then(()=>{
   detail=DETAIL.length-1;                       // a showcase is worth the finest setting, in blocks
   bDetail.textContent='Detail: '+DETAIL_NAME[detail];
   setBlocks(1);
+  setMode(2);                                   // early evening, when the light turns
+  bDay.textContent=MODENAME[2];bDay.setAttribute('aria-pressed','false');
   runDemo(demoIdx);
 });
 addEventListener('hashchange',()=>{try{const h=decodeURIComponent(location.hash.slice(1));if(h&&slug(h)!==slug(qEl.value)){leaveFront();qEl.value=h;loadPlace(h);}}catch(e){}});

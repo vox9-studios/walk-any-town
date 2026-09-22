@@ -31,10 +31,11 @@ input{
   border:1px solid var(--ink);padding:.4rem .55rem;border-radius:0;
 }
 .controls{display:flex;gap:.4rem;flex-wrap:wrap}
-button{
+button,select{
   font:inherit;font-size:.8rem;color:inherit;background:transparent;border-radius:0;
   border:1px solid var(--ink);padding:.4rem .65rem;cursor:pointer;
 }
+select[hidden]{display:none}
 button[aria-pressed="true"],form button{background:var(--ink);color:var(--paper)}
 button:focus-visible,input:focus-visible{outline:2px solid var(--amber);outline-offset:2px}
 #stage{flex:1;min-height:0;position:relative;background:var(--night);touch-action:none;overflow:hidden}
@@ -76,6 +77,7 @@ a{color:inherit}
     <datalist id="towns"></datalist>
     <button type="submit">Build it</button>
   </form>
+  <select id="flights" aria-label="Take a flight" hidden><option value="">Take a flight…</option></select>
   <div class="controls">
     <button id="bRun" aria-pressed="false">Run off</button>
     <button id="bDay" aria-pressed="true">Daylight</button>
@@ -1061,6 +1063,11 @@ async function loadIndex(){                       // towns prepared ahead of tim
   try{
     const r=await fetch('data/index.json',{cache:'no-cache'});if(!r.ok)return;
     towns=await r.json();
+    const fl=document.getElementById('flights');
+    for(const t of towns)if(t.route&&t.route.length>1){
+      const o=document.createElement('option');o.value=t.slug;o.textContent=t.name;fl.appendChild(o);
+      fl.hidden=false;
+    }
     const dl=document.getElementById('towns');dl.textContent='';
     for(const t of towns){const o=document.createElement('option');o.value=t.name;dl.appendChild(o);}
   }catch(e){}
@@ -1152,6 +1159,14 @@ fileEl.addEventListener('change',async()=>{
   busy=false;fileEl.value='';
 });
 document.getElementById('go').addEventListener('submit',e=>{e.preventDefault();qEl.blur();loadPlace(qEl.value);});
+const flightsEl=document.getElementById('flights');
+flightsEl.addEventListener('change',async()=>{          // pick a flight and you are taken to the start of it
+  const slug=flightsEl.value;flightsEl.value='';
+  const t=towns.find(x=>x.slug===slug);
+  if(!t||busy)return;
+  await loadPlace(t.name);
+  if(worldReady&&route)setTour(true);
+});
 
 /* ---------- walking, flying, input ---------- */
 const walker={x:CX,y:CY,feet:G,vz:0,yaw:-Math.PI/2,pitch:0};

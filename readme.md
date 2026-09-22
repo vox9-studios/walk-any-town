@@ -192,6 +192,11 @@ its map. The page reads, and falls back sensibly without:
 | Shopfronts | `shop`, `amenity`, `name` |
 | Streets | `width`, `lanes`, `oneway`, `surface`, `highway` |
 
+An outline drawn round its own parts is not raised. The Simple 3D Buildings scheme puts a polygon round a
+modelled building and tags it with the whole height: the Eiffel Tower is 174 m square and 330 m tall as an
+outline, and four pillars, three floors and a mast as parts. Raising the outline buries the modelling inside a
+block, which is why the tower looked like a tower and not like the tower.
+
 `building:part` is the one that changes a landmark. Where somebody has modelled a building in three dimensions,
 each part carries its own height and roof, and the page raises them separately, tallest last. Parliament Square
 holds 1,577 of them: the Palace of Westminster comes out with its towers and pinnacles rather than as one slab

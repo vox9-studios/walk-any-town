@@ -12,7 +12,7 @@ const ELEVATION = 'https://api.opentopodata.org/v1';
 const DEM = ['eudem25m', 'mapzen', 'srtm30m'];   // the first that covers the whole square wins
 const ELE_N = 33;                                // ground is sampled on a 33 by 33 grid
 const DEFAULT_HALF = 200;                        // half the side of the square, in metres
-const MAX_HALF = 400;                            // the page draws half a metre to a cell, so this is 1600 cells across
+const MAX_HALF = 600;                            // at half a metre to a cell that is 2400 across, at two metres 600
 
 const FILTERS = ['way[building]', 'relation[building]', 'way["building:part"]', 'relation["building:part"]',
   'way[man_made=tower]', 'way[highway]', 'way[natural=water]', 'relation[natural=water]',
@@ -246,7 +246,7 @@ for (const line of lines) {
     const elements = (await overpass(lat, lon, want.half)).map(slim);
     if (!elements.some(e => e.tags.building || e.tags.highway)) throw new Error('nothing is mapped there yet');
     const ele = await terrain(lat, lon, want.half);
-    await writeFile(file, JSON.stringify({ name, lat, lon, half: want.half, ele, elements }));
+    await writeFile(file, JSON.stringify({ name, lat, lon, half: want.half, cell: want.cell || undefined, ele, elements }));
     index.push({ slug: s, name, lat, lon, half: want.half, start: want.start,
       cell: want.cell, route: want.route.length ? want.route : null });
     console.log('fetched ', name, '-', elements.length, 'map features across', want.half * 2, 'metres');

@@ -16,4 +16,4 @@
 
 High Street, East Grinstead, UK | 300 | 51.124221,-0.008164
 The Square, Forest Row, UK | 300
-Agde, France | 300 | 43.313650,3.470200 | @43.314786,3.469694
+Agde, France | 300 | 43.313650,3.470200 | @43.314940,3.469291

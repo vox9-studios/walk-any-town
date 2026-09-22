@@ -232,7 +232,8 @@ function fillLine(pts,w,fn){           // a path with thickness w, in cells
     for(let y=y0;y<=y1;y++)for(let x=x0;x<=x1;x++){
       let t=((x+.5-ax)*dx+(y+.5-ay)*dy)/l2;t=t<0?0:t>1?1:t;
       const ex=x+.5-ax-dx*t,ey=y+.5-ay-dy*t;
-      if(ex*ex+ey*ey<=hw*hw)fn(y*N+x);
+      const e2=ex*ex+ey*ey;
+      if(e2<=hw*hw)fn(y*N+x,i,t,e2);
     }
   }
 }
@@ -245,7 +246,7 @@ function buildFromOSM(data,lat0,lon0){
   const kx=Math.cos(lat0*Math.PI/180)*111320/CELL, ky=110540/CELL;
   const P=g=>[(g.lon-lon0)*kx+CX,-(g.lat-lat0)*ky+CY];
   const M=m=>m/CELL;
-  const buildings=[],roads=[],water=[],woods=[],parking=[],plazas=[],streams=[],trees=[],pois=[];
+  const buildings=[],roads=[],bridges=[],water=[],woods=[],parking=[],plazas=[],streams=[],trees=[],pois=[];
   for(const e of data.elements||[]){
     const t=e.tags||{};
     if(e.type==='node'){
@@ -256,7 +257,13 @@ function buildFromOSM(data,lat0,lon0){
     const rings=e.type==='way'?(e.geometry?[e.geometry.map(P)]:[]):(e.members||[]).filter(m=>m.geometry).map(m=>m.geometry.map(P));
     if(!rings.length)continue;
     if(t.building)buildings.push({rings,t,id:e.id});
-    else if(t.highway){if(t.area==='yes')plazas.push(rings);else if(t.tunnel!=='yes'&&ROADW[t.highway])roads.push({pts:rings[0],t});}
+    else if(t.highway){
+      if(t.area==='yes')plazas.push(rings);
+      else if(t.tunnel!=='yes'&&ROADW[t.highway]){
+        roads.push({pts:rings[0],t});
+        if(t.bridge&&t.bridge!=='no')bridges.push({pts:rings[0],t});
+      }
+    }
     else if(t.natural==='water'||t.waterway==='riverbank')water.push(rings);
     else if(t.waterway)streams.push({pts:rings[0],w:t.waterway==='river'?10:3});
     else if(t.natural==='wood'||t.landuse==='forest')woods.push(rings);
@@ -266,6 +273,8 @@ function buildFromOSM(data,lat0,lon0){
   for(const r of parking)fillPoly(r,set(5,0));
   for(const r of water)fillPoly(r,set(3,-1));
   for(const s of streams)fillLine(s.pts,M(s.w),set(3,-1));
+  const wasWater=new Uint8Array(N*N);
+  for(let i=0;i<N*N;i++)if(Mt[i]===3)wasWater[i]=1;
   // streets: pavements first, then footpaths, then the carriageway on top
   const aim=data.start?P(data.start):null, AX=aim?aim[0]:CX, AY=aim?aim[1]:CY;
   let best=1e9;
@@ -307,6 +316,44 @@ function buildFromOSM(data,lat0,lon0){
         localRoof=vernacular(t=>(t['roof:material']||'').toLowerCase());
   const localStyle=localWall!==null?WALLMAT[localWall]:undefined;
   const localRi=localRoof!==null?ROOFMAT[localRoof]:undefined;
+
+  // Bridges. Drawn flat at ground level a bridge is just a wet-looking road, so one that crosses water
+  // gets a deck arched clear of it and a parapet down each side, the way a masonry bridge sits.
+  const decks=[];
+  for(const br of bridges){
+    const pts=br.pts;if(pts.length<2)continue;
+    const seg=[],cum=[0];let total=0;
+    for(let i=0;i+1<pts.length;i++){
+      const l=Math.hypot(pts[i+1][0]-pts[i][0],pts[i+1][1]-pts[i][1]);
+      seg.push(l);cum.push(total+=l);
+    }
+    if(!(total>20))continue;                          // ten metres: shorter than that and it is a culvert
+    const gAt=q=>{const x=Math.floor(q[0]),y=Math.floor(q[1]);return(x<0||y<0||x>=N||y>=N)?G:Gr[y*N+x];};
+    const w=M(roadWidth(br.t));
+    let wet=0,seen=0,low=1e9;
+    fillLine(pts,w,c=>{seen++;if(wasWater[c]){wet++;const h=Gr[c]-1;if(h<low)low=h;}});
+    if(!seen||wet<seen*.2||low>1e8)continue;          // not really over water: leave it the road it is
+    const h0=gAt(pts[0]),h1=gAt(pts[pts.length-1]),mid=(h0+h1)/2;
+    // about four metres of air over the water, but never a gradient a person could not walk up
+    const rise=Math.min(14,total*.12,Math.max(0,low+8-mid));
+    if(rise<1)continue;
+    decks.push({pts,seg,cum,total,h0,h1,rise,w});
+  }
+  const deckAt=(b,i,t)=>{
+    const a=(b.cum[i]+t*b.seg[i])/b.total;
+    return[a,b.h0+(b.h1-b.h0)*a+b.rise*Math.sin(Math.PI*a)];
+  };
+  for(const b of decks){                              // parapets first, so the deck can sit down inside them
+    const edge=(b.w/2-.6)*(b.w/2-.6);
+    fillLine(b.pts,b.w+4,(c,i,t,d2)=>{
+      if(Bi[c]||d2<edge)return;
+      const at=deckAt(b,i,t);
+      if(at[0]<.03||at[0]>.97)return;                 // not across the ends, where the road runs on
+      Mt[c]=1;Hm[c]=at[1]+2;
+    });
+  }
+  for(const b of decks)
+    fillLine(b.pts,b.w,(c,i,t)=>{if(!Bi[c]){Mt[c]=5;Hm[c]=deckAt(b,i,t)[1];}});
 
   // buildings: what the map says each one is made of, how tall it stands, and what shape its roof takes
   for(const b of buildings){

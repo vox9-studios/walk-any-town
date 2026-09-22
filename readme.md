@@ -127,6 +127,10 @@ records, so a building with no tags is a plausible building rather than the real
   the old High Street stands well above the shops on London Road.
 - Buildings stand level on the mean ground under their own footprint, so a house on a slope shows more wall on
   its downhill side, as it does in life.
+- A road tagged `bridge` that crosses water gets a deck arched clear of it, about four metres of air at the
+  crown, with a stone parapet down each side. Drawn flat at ground level, as it was before, a bridge is just a
+  road that happens to look wet. Bridges shorter than ten metres, and those that cross something other than
+  water, are left as the roads they are.
 - The trees you see are the ones the map records, the woods it outlines, and a thin scatter over open grass,
   about one to every hundred metres square. Streets are not meant to disappear behind invented foliage.
 - Map data © OpenStreetMap contributors, under the Open Database Licence. Ground heights for a town built by

@@ -87,8 +87,11 @@ canvas:active{cursor:grabbing}
 #stick{position:absolute;width:96px;height:96px;border:1px dashed #e9e4c8aa;border-radius:50%;pointer-events:none;display:none;transform:translate(-50%,-50%)}
 #nub{position:absolute;left:50%;top:50%;width:30px;height:30px;margin:-15px;border-radius:50%;background:#e9e4c8aa}
 @media (pointer:coarse){#jump,#run{display:block}}
-footer{padding:.45rem .9rem;font-size:.75rem;line-height:1.4;display:flex;justify-content:space-between;gap:.2rem 1rem;flex-wrap:wrap}
+footer{padding:.3rem .9rem;font-size:.7rem;line-height:1.35;display:flex;justify-content:space-between;
+  gap:.2rem 1rem;flex-wrap:wrap;opacity:.45;transition:opacity .25s}
+footer:hover,footer:focus-within{opacity:1}
 footer p{margin:0}
+#bCredit{font-size:.66rem;line-height:1;padding:.18rem .42rem;border-radius:999px;vertical-align:baseline}
 #street{font-weight:700}
 a{color:inherit}
 </style>
@@ -103,15 +106,14 @@ a{color:inherit}
   </form>
   <select id="flights" aria-label="Somewhere ready to walk" hidden><option value="">Somewhere ready…</option></select>
   <div class="controls">
-    <button id="bRun" aria-pressed="true">Run on</button>
+    <button id="bRun" aria-pressed="true">Run</button>
     <button id="bDay" aria-pressed="true">Daylight</button>
     <button id="bTour" aria-pressed="false">Fly around</button>
     <button id="bColour" aria-pressed="true">Colour on</button>
-    <button id="bDetail">Detail: extra fine</button>
-    <button id="bBlocks" aria-pressed="false">Blocks off</button>
+    <button id="bDetail">Detail: finest</button>
+    <button id="bBlocks" aria-pressed="true">Blocks on</button>
     <button id="bMap" aria-pressed="true">Map on</button>
-    <button id="bFile">Load map file</button>
-    <input id="file" type="file" accept=".json,.geojson,.txt,application/json" hidden>
+
   </div>
 </header>
 <div id="stage">
@@ -130,7 +132,8 @@ a{color:inherit}
 </div>
 <footer>
   <p><span id="street"></span> <span id="hint"></span></p>
-  <p><span id="stat"></span> Map data © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap contributors</a>.<span id="ground"></span></p>
+  <p><button id="bCredit" type="button" aria-expanded="false" title="Where the map comes from, and how fast it draws">i</button>
+     <span id="more" hidden><span id="stat"></span><span id="ground"></span> </span><a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">© OpenStreetMap</a></p>
 </footer>
 <script>
 (()=>{
@@ -151,7 +154,7 @@ const G=2;                        // the datum the lowest ground in town sits on
 const SEE_M=220;                  // how far you can see, in metres rather than in cells
 let MAXD=440;                     // the same in cells, worked out whenever the world is sized
 let CELL=.5, N=800, CX=N/2, CY=N/2;   // a cell is half a metre to walk in, more to fly over
-let EYE,WALKC,RUNC,JUMPV,GRAV,STEPUP,BODY,STICK;   // a person, in cells of whatever size this world uses
+let EYE,WALKC,RUNC,TURBOC,JUMPV,GRAV,STEPUP,BODY,STICK;   // a person, in cells of whatever size this world uses
 let Hm,                           // height of every cell
     Ev,                           // eaves height, where a cell is a building
     Gr,                           // the ground under it all
@@ -169,7 +172,7 @@ function sizeTo(half,cell){       // half is how far the map data reaches from t
   CELL=c;
   MAXD=Math.min(1000,Math.round(SEE_M/c));
   N=n;CX=CY=N/2;
-  EYE=1.7/CELL;WALKC=5.625/CELL;RUNC=9.375/CELL;JUMPV=5.5/CELL;GRAV=19/CELL;
+  EYE=1.7/CELL;WALKC=5.625/CELL;RUNC=9.375/CELL;TURBOC=24/CELL;JUMPV=5.5/CELL;GRAV=19/CELL;
   STEPUP=.575/CELL;BODY=.175/CELL;STICK=.3/CELL;
   Hm=new Float32Array(N*N);Ev=new Float32Array(N*N);Gr=new Float32Array(N*N);
   Mt=new Uint8Array(N*N);Bi=new Uint16Array(N*N);Rn=new Uint16Array(N*N);
@@ -706,7 +709,7 @@ function shadowMap(az,el){
 /* ---------- the frame: arrays of characters and colours ---------- */
 let W=0,H=0,chars,fgPix,bgPix,cw=6,chh=10;
 let HR=0,chhR=10,Lt;              // rows of picture, and how tall one is: with blocks on, two to a row of type
-let time=0, colour=true, blocks=0, aw=.01, ah=.01;
+let time=0, colour=true, blocks=1, aw=.01, ah=.01;
 const SUN={az:Math.PI/2+.35,el:.95,map:null}, MOON={az:-Math.PI/2-.5,el:.55,map:null},   // midday, just past south
       DUSK={az:Math.PI-.16,el:.14,map:null};      // low, and in the west, where the sun goes
 const MODENAME=['Night','Daylight','Evening'];
@@ -1010,7 +1013,7 @@ const tcv=document.createElement('canvas'), tctx=tcv.getContext('2d');   // the 
 const STACK='ui-monospace,"SF Mono",Menlo,Consolas,"DejaVu Sans Mono","Liberation Mono",monospace';
 const DETAIL=[9,6,4,3], DETAIL_NAME=['medium','fine','extra fine','finest'];
 const DETAIL_CAP=[22000,36000,56000,90000];   // on a big screen this, not the type size, sets the resolution
-let detail=2,ox=0,oy=0,bimg=null,fimg=null,ready=false,dch=null,dfg=null;
+let detail=3,ox=0,oy=0,bimg=null,fimg=null,ready=false,dch=null,dfg=null;
 const CH=[];for(let i=0;i<128;i++)CH.push(String.fromCharCode(i));
 
 function setup(){
@@ -1194,7 +1197,7 @@ async function loadPlace(q){
     const t=towns.find(t=>t.slug===slug(q)||t.slug===q||t.name===q);
     if(t){
       say('Loading '+t.name);
-      const r=await fetch('data/'+t.slug+'.json');
+      const r=await fetch('data/'+t.slug+'.json',{cache:'no-cache'});
       if(!r.ok)throw new Error('The map file for '+t.name+' is missing from this site.');
       if(!demo)qEl.value=t.name;        // the showcase must not rewrite what somebody is typing
       const townData=await r.json();
@@ -1260,24 +1263,6 @@ async function enter(data,lat,lon){
   Object.assign(walker,{x:spawn.x,y:spawn.y,feet:groundAt(spawn.x,spawn.y),vz:0,yaw:spawn.yaw,pitch:0});
   say('');
 }
-// offline route: a saved Overpass JSON file, centred on the middle of whatever it contains
-const fileEl=document.getElementById('file');
-document.getElementById('bFile').onclick=()=>fileEl.click();
-fileEl.addEventListener('change',async()=>{
-  const f=fileEl.files[0];if(!f||busy)return;busy=true;worldReady=false;
-  try{
-    say('Reading '+f.name);
-    const data=JSON.parse(await f.text());
-    let a=90,b=-90,c=180,d=-180;
-    const see=g=>{if(g.lat<a)a=g.lat;if(g.lat>b)b=g.lat;if(g.lon<c)c=g.lon;if(g.lon>d)d=g.lon;};
-    for(const e of data.elements||[]){if(e.geometry)e.geometry.forEach(see);else if(e.lat!==undefined)see(e);(e.members||[]).forEach(m=>m.geometry&&m.geometry.forEach(see));}
-    if(a>b)throw new Error('That file has no map shapes in it. It needs to be Overpass JSON saved with "out geom".');
-    const lat=(a+b)/2, lon=(c+d)/2;
-    if(!(data.half>0))data.half=Math.max(100,Math.min(400,Math.max((b-a)*110540,(d-c)*111320*Math.cos(lat*Math.PI/180))/2));
-    await enter(data,lat,lon);
-  }catch(e){worldReady=false;say(e.name==='SyntaxError'?'That file is not valid JSON.':e.message);}
-  busy=false;fileEl.value='';
-});
 document.getElementById('go').addEventListener('submit',e=>{e.preventDefault();qEl.blur();leaveFront();loadPlace(qEl.value);});
 const flightsEl=document.getElementById('flights');
 flightsEl.addEventListener('change',async()=>{          // a flight takes off; a walk puts you on the ground
@@ -1316,8 +1301,10 @@ function along(d){                // where you are when you have flown this far
 }
 const keys={};let stick=null;const looks=new Map();let wantJump=false;
 
-let runLock=true;                   // running is the default: a town is a big place to cross at walking pace
-const running=()=>runLock||!!(keys.ShiftLeft||keys.ShiftRight);
+// 0 walks, 1 runs, 2 is a turbo for crossing a kilometre of town. Shift bumps it up one while held.
+let speed=1;
+const SPEEDNAME=['Walk','Run','Turbo'];
+const speedNow=()=>(keys.ShiftLeft||keys.ShiftRight)?Math.min(2,speed+1):speed;
 
 const hAt=(x,y)=>{
   let cx=Math.floor(x),cy=Math.floor(y);
@@ -1382,7 +1369,7 @@ function update(dt){
   w.yaw+=(((keys.ArrowRight)?1:0)-((keys.ArrowLeft)?1:0))*1.9*dt;
   if(stick){str+=stick.dx;fwd-=stick.dy;}
   const len=Math.hypot(fwd,str);if(len>1){fwd/=len;str/=len;}
-  const c=Math.cos(w.yaw),s=Math.sin(w.yaw),sp=(running()?RUNC:WALKC)*dt;
+  const c=Math.cos(w.yaw),s=Math.sin(w.yaw),sp=[WALKC,RUNC,TURBOC][speedNow()]*dt;
   const nx=w.x+(fwd*c-str*s)*sp, ny=w.y+(fwd*s+str*c)*sp;
   if(groundAt(nx,w.y)<=w.feet+STEPUP)w.x=nx;
   if(groundAt(w.x,ny)<=w.feet+STEPUP)w.y=ny;
@@ -1440,14 +1427,15 @@ document.getElementById('jump').addEventListener('pointerdown',e=>{e.preventDefa
 
 const bRun=document.getElementById('bRun'),runEl=document.getElementById('run');
 function setRun(v){
-  runLock=v;
-  bRun.textContent=v?'Run on':'Run off';
-  bRun.setAttribute('aria-pressed',String(v));
-  runEl.setAttribute('aria-pressed',String(v));
+  speed=v;
+  bRun.textContent=SPEEDNAME[v];
+  bRun.setAttribute('aria-pressed',String(v>0));
+  runEl.textContent=SPEEDNAME[v];
+  runEl.setAttribute('aria-pressed',String(v>0));
 }
-bRun.onclick=()=>{setRun(!runLock);takeControl();};
-setRun(runLock);                    // put both buttons in step with it
-runEl.addEventListener('pointerdown',e=>{e.preventDefault();setRun(!runLock);takeControl();});
+bRun.onclick=()=>{setRun((speed+1)%3);takeControl();};
+setRun(speed);
+runEl.addEventListener('pointerdown',e=>{e.preventDefault();setRun((speed+1)%3);takeControl();});
 
 const MOVE=['KeyW','KeyA','KeyS','KeyD','ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space'];
 addEventListener('keydown',e=>{
@@ -1484,7 +1472,7 @@ cv.addEventListener('pointerup',endPtr);cv.addEventListener('pointercancel',endP
 cv.addEventListener('contextmenu',e=>e.preventDefault());
 
 const coarse=window.matchMedia&&matchMedia('(pointer:coarse)').matches;
-const baseHint=coarse?'Left thumb walks, right thumb looks; Run and Jump are bottom right.':'W A S D to move, drag to look, space to jump. Running is on: press Run to slow to a walk.';
+const baseHint=coarse?'Left thumb moves, right thumb looks. Speed and Jump are bottom right.':'W A S D to move, drag to look, space to jump. The speed button steps through walk, run and turbo.';
 hintEl.textContent=baseHint;
 
 /* ---------- the front screen: a city turning behind the search box ---------- */
@@ -1544,6 +1532,10 @@ async function runDemo(i){
 
 /* ---------- loop ---------- */
 const statEl=document.getElementById('stat'),streetEl=document.getElementById('street');
+// The map is OpenStreetMap's, under the ODbL, which asks that the credit travels with anything drawn
+// from it: it stays on the page. The frame timings and the height source sit behind the button.
+const bCredit=document.getElementById('bCredit'),moreEl=document.getElementById('more');
+bCredit.onclick=()=>{const on=moreEl.hidden;moreEl.hidden=!on;bCredit.setAttribute('aria-expanded',String(on));};
 let last=0,fpsAcc=0,fpsN=0,statT=0,tWork=0,tDraw=0;
 const clock=(typeof performance!=='undefined'&&performance.now)?()=>performance.now():()=>Date.now();
 function frame(now){
@@ -1582,8 +1574,8 @@ loadIndex().then(()=>{
   detail=DETAIL.length-1;                       // a showcase is worth the finest setting, in blocks
   bDetail.textContent='Detail: '+DETAIL_NAME[detail];
   setBlocks(1);
-  setMode(2);                                   // early evening, when the light turns
-  bDay.textContent=MODENAME[2];bDay.setAttribute('aria-pressed','false');
+  setMode(1);                                   // plain daylight: the point is to see the place
+  bDay.textContent=MODENAME[1];bDay.setAttribute('aria-pressed','true');
   runDemo(demoIdx);
 });
 addEventListener('hashchange',()=>{try{const h=decodeURIComponent(location.hash.slice(1));if(h&&slug(h)!==slug(qEl.value)){leaveFront();qEl.value=h;loadPlace(h);}}catch(e){}});

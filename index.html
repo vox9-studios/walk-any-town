@@ -1135,7 +1135,7 @@ async function loadPlace(q){
       say('Loading '+t.name);
       const r=await fetch('data/'+t.slug+'.json');
       if(!r.ok)throw new Error('The map file for '+t.name+' is missing from this site.');
-      qEl.value=t.name;
+      if(!demo)qEl.value=t.name;        // the showcase must not rewrite what somebody is typing
       const townData=await r.json();
       if(t.start)townData.start=t.start;
       if(t.cell)townData.cell=t.cell;
@@ -1261,6 +1261,16 @@ const hAt=(x,y)=>{
   return Hm[cy*N+cx];
 };
 const groundAt=(x,y)=>Math.max(hAt(x-BODY,y-BODY),hAt(x+BODY,y-BODY),hAt(x-BODY,y+BODY),hAt(x+BODY,y+BODY));
+// groundAt is the top of whatever is there, roofs and all, which is what walking wants and flying does not:
+// taking a cruising height from it makes the camera leap the height of every tower it passes over.
+const terrainAt=(x,y)=>{
+  let cx=Math.floor(x),cy=Math.floor(y);
+  if(cx<0)cx=0;else if(cx>=N)cx=N-1;
+  if(cy<0)cy=0;else if(cy>=N)cy=N-1;
+  return Gr[cy*N+cx];
+};
+// Frame-rate independent smoothing: a fraction per second, not a fraction per frame.
+const damp=(rate,dt)=>1-Math.exp(-rate*dt);
 
 function update(dt){
   if(tour){
@@ -1269,10 +1279,10 @@ function update(dt){
       if(flyD>=route.total)flyD-=route.total;
       const here=along(flyD);
       cam.x=here[0];cam.y=here[1];
-      cam.z=groundAt(here[0],here[1])+route.height/CELL;
+      cam.z=terrainAt(here[0],here[1])+route.height/CELL;
       const want=Math.atan2(focus[1]-here[1],focus[0]-here[0]);
       let turn=want-cam.yaw;turn-=Math.round(turn/TAU)*TAU;
-      cam.yaw+=turn*Math.min(1,dt*4);
+      cam.yaw+=turn*damp(5,dt);
       const flat=Math.hypot(focus[0]-here[0],focus[1]-here[1])*CELL;
       cam.pitch=-Math.atan2(route.height-route.aim,Math.max(30,flat));
       return;
@@ -1288,16 +1298,16 @@ function update(dt){
       const here=along(flyD), ahead=along(flyD+flyWay*(30/CELL));
       const ease=Math.min(1,Math.min(flyD,route.total-flyD)/(120/CELL));
       cam.x=here[0];cam.y=here[1];
-      cam.z=groundAt(here[0],here[1])+(cruise*(.3+.7*ease))/CELL;   // rise as you leave, settle as you arrive
+      cam.z=terrainAt(here[0],here[1])+(cruise*(.3+.7*ease))/CELL;   // rise as you leave, settle as you arrive
       const want=Math.atan2(ahead[1]-here[1],ahead[0]-here[0]);
       let turn=want-cam.yaw;turn-=Math.round(turn/TAU)*TAU;  // swing round to it rather than snapping
-      cam.yaw+=turn*Math.min(1,dt*1.6);
+      cam.yaw+=turn*damp(2,dt);
       cam.pitch=-.17-.1*ease;
       return;
     }
     tourA+=dt*.07;
     const R=N*.2;                                   // a wider circle over a bigger town
-    cam.x=spawn.x+R*Math.cos(tourA);cam.y=spawn.y+R*Math.sin(tourA);cam.z=groundAt(cam.x,cam.y)+N*.11;
+    cam.x=spawn.x+R*Math.cos(tourA);cam.y=spawn.y+R*Math.sin(tourA);cam.z=terrainAt(cam.x,cam.y)+N*.11;
     cam.yaw=Math.atan2(spawn.y-cam.y,spawn.x-cam.x);cam.pitch=-.45;
     return;
   }

@@ -4,7 +4,7 @@
   "name": "High Street, East Grinstead, UK",
   "lat": 51.124221,
   "lon": -0.008164,
-  "half": 300,
+  "half": 500,
   "start": null,
   "cell": 0,
   "route": null
@@ -14,7 +14,7 @@
   "name": "The Square, Forest Row, UK",
   "lat": 51.0981059,
   "lon": 0.0335803,
-  "half": 300,
+  "half": 500,
   "start": null,
   "cell": 0,
   "route": null
@@ -24,7 +24,7 @@
   "name": "Agde, France",
   "lat": 43.31365,
   "lon": 3.4702,
-  "half": 300,
+  "half": 500,
   "start": {
    "lat": 43.31494,
    "lon": 3.469291
@@ -42,7 +42,6 @@
    "lat": 51.5009,
    "lon": -0.122
   },
-  "cell": 0,
   "route": [
    {
     "lat": 51.5036,
@@ -67,7 +66,7 @@
   "name": "Ile de la Cite, Paris, France",
   "lat": 48.8541,
   "lon": 2.3478,
-  "half": 400,
+  "half": 500,
   "start": {
    "lat": 48.853,
    "lon": 2.3499
@@ -80,7 +79,7 @@
   "name": "Charles Bridge, Prague, Czechia",
   "lat": 50.0863,
   "lon": 14.4119,
-  "half": 400,
+  "half": 500,
   "start": {
    "lat": 50.0865,
    "lon": 14.4114
@@ -93,7 +92,7 @@
   "name": "Piazza Navona, Rome, Italy",
   "lat": 41.8989,
   "lon": 12.4731,
-  "half": 350,
+  "half": 500,
   "start": null,
   "cell": 0,
   "route": null
@@ -103,7 +102,7 @@
   "name": "Eiffel Tower, Paris, France",
   "lat": 48.8584,
   "lon": 2.2945,
-  "half": 450,
+  "half": 500,
   "start": null,
   "cell": 2,
   "route": null
@@ -113,7 +112,7 @@
   "name": "Lower Manhattan, New York, USA",
   "lat": 40.7127,
   "lon": -74.0134,
-  "half": 450,
+  "half": 500,
   "start": null,
   "cell": 2,
   "route": null
@@ -123,7 +122,7 @@
   "name": "Bourton-on-the-Water, Gloucestershire, UK",
   "lat": 51.8856,
   "lon": -1.7556,
-  "half": 300,
+  "half": 500,
   "start": null,
   "cell": 0,
   "route": null
@@ -135,7 +134,6 @@
   "lon": 7.922,
   "half": 350,
   "start": null,
-  "cell": 0,
   "route": null
  },
  {
@@ -143,7 +141,7 @@
   "name": "Levuka, Fiji",
   "lat": -17.6833,
   "lon": 178.8333,
-  "half": 300,
+  "half": 500,
   "start": null,
   "cell": 0,
   "route": null

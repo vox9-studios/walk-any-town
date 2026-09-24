@@ -37,11 +37,12 @@
   "name": "Parliament Square, London, UK",
   "lat": 51.502,
   "lon": -0.1231,
-  "half": 400,
+  "half": 500,
   "start": {
    "lat": 51.5009,
    "lon": -0.122
   },
+  "cell": 0,
   "route": [
    {
     "lat": 51.5036,

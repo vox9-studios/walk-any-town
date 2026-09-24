@@ -14,8 +14,8 @@
 #
 # Lines starting with # are ignored. After editing, commit: the site rebuilds itself.
 
-High Street, East Grinstead, UK | 500 | 51.124221,-0.008164
-The Square, Forest Row, UK | 500
+High Street, East Grinstead, UK | 600 | 51.124221,-0.008164
+The Square, Forest Row, UK | 600
 Agde, France | 500 | 43.313650,3.470200 | @43.314940,3.469291
 
 # Capitals, for the view from the air: press Fly around in any of them.
@@ -32,7 +32,7 @@ Wengen, Switzerland | 500 | 46.60540,7.92200
 Levuka, Fiji | 500 | -17.68330,178.83330
 
 # Home ground.
-Cheam Village, Sutton, London, UK | 500 | 51.35960,-0.21430 | @51.35930,-0.21390
+Cheam Village, Sutton, London, UK | 600 | 51.35960,-0.21430 | @51.35930,-0.21390
 
 # A close walk: a short stretch of street at a quarter of a metre to the cell.
 Middle Row, East Grinstead, UK | 150 | m0.25 | 51.12405,-0.00815

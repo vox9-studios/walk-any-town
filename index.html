@@ -163,9 +163,11 @@ let Hm,                           // height of every cell
     Rn;                           // which street name
 function sizeTo(half,cell){       // half is how far the map data reaches from the middle, in metres
   let c=cell>0?cell:.5;
-  // Every cell costs about thirteen bytes to hold and as much again while the world is being built,
-  // so a grid has a ceiling. Past it the square is not refused: the cells grow until it fits.
-  const cap=c>=1.5?2048:2000;
+  // Every cell costs seventeen bytes to hold and as much again while the world is being built, so a
+  // grid has a ceiling. Past it the square is not refused: the cells grow until it fits. A phone gets
+  // the lower ceiling and slightly larger cells; it covers the same ground either way.
+  const touch=typeof matchMedia==='function'&&matchMedia('(pointer:coarse)').matches;
+  const cap=c>=1.5?2048:(touch?2000:2400);
   let n=Math.max(400,Math.round(half*2/c/8)*8);
   if(n>cap){n=cap;c=half*2/n;}
   if(n===N&&c===CELL&&Hm)return;
@@ -1222,23 +1224,29 @@ async function loadPlace(q){
       if(!r.ok)throw new Error('status '+r.status);geo=await r.json();
     }catch(e){throw new Error('"'+q+'" is not one of the towns prepared for this site, and the live place search could not be reached. Add it to towns.txt in the site\'s repository and it will be built in.');}
     if(!geo.length)throw new Error('No place called "'+q+'" was found. Try adding the town or country, such as "High Street, East Grinstead, UK".');
-    // A place typed in gets what a prepared one gets, as near as a live query can manage. It stops short
-    // of the full 500 m because the map servers charge steeply for area: a 400 m square answers in about
-    // two seconds where a 600 m one took nearly twenty.
-    const lat=+geo[0].lat,lon=+geo[0].lon,half=350;
-    const dLat=half/110540,dLon=half/(111320*Math.cos(lat*Math.PI/180));
-    const bb='('+(lat-dLat)+','+(lon-dLon)+','+(lat+dLat)+','+(lon+dLon)+')';
-    const ql='[out:json][timeout:60];('+['way[building]','relation[building]','way["building:part"]','relation["building:part"]',
-      'way[man_made=tower]','way[highway]','way[natural=water]','relation[natural=water]','way[natural=wood]',
-      'way[waterway]','way[landuse=forest]','way[amenity=parking]','node[natural=tree]','node[shop][name]','node[amenity][name]'].map(f=>f+bb+';').join('')+');out geom;';
+    // A place typed in is asked for at the same 1.2 km across as one prepared here. Area is what the map
+    // servers charge for, so if none of them will carry a square that big the ask drops and goes round
+    // again: a smaller town beats an apology.
+    const lat=+geo[0].lat,lon=+geo[0].lon;
+    const query=h=>{
+      const dLat=h/110540,dLon=h/(111320*Math.cos(lat*Math.PI/180));
+      const bb='('+(lat-dLat)+','+(lon-dLon)+','+(lat+dLat)+','+(lon+dLon)+')';
+      return '[out:json][timeout:90];('+['way[building]','relation[building]','way["building:part"]','relation["building:part"]',
+        'way[man_made=tower]','way[highway]','way[natural=water]','relation[natural=water]','way[natural=wood]',
+        'way[waterway]','way[landuse=forest]','way[amenity=parking]','node[natural=tree]','node[shop][name]','node[amenity][name]'].map(f=>f+bb+';').join('')+');out geom;';
+    };
     const place=(geo[0].display_name||q).split(',').slice(0,3).join(',');
-    let data=null;
-    for(const url of OVERPASS){
-      try{
-        say('Fetching buildings and streets around '+place+', from '+new URL(url).host);
-        const r=await fetch(url+'?data='+encodeURIComponent(ql),{signal:giveUpAfter(20000)});   // plain GET: the servers turn away fancier requests
-        if(r.ok){data=await r.json();break;}
-      }catch(e){}
+    let data=null,half=0;
+    outer:
+    for(const want of [600,350]){
+      const ql=query(want);
+      for(const url of OVERPASS){
+        try{
+          say('Fetching '+(want*2)+' m of '+place+(want<600?', a smaller square this time':'')+', from '+new URL(url).host);
+          const r=await fetch(url+'?data='+encodeURIComponent(ql),{signal:giveUpAfter(want>=600?45000:20000)});   // plain GET: the servers turn away fancier requests
+          if(r.ok){data=await r.json();half=want;break outer;}
+        }catch(e){}
+      }
     }
     if(!data)throw new Error('"'+q+'" could not be built just now: the map servers would not answer. They are free and shared, so this happens; wait a minute and try again, or add the place to towns.txt in the site\'s repository and it will be built in.');
     data.half=half;

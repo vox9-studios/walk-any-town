@@ -11,7 +11,9 @@ const OVERPASS = [
 const ELEVATION = 'https://api.opentopodata.org/v1';
 const DEM = ['eudem25m', 'mapzen', 'srtm30m'];   // the first that covers the whole square wins
 const ELE_N = 33;                                // ground is sampled on a 33 by 33 grid
-const DEFAULT_HALF = 500;                        // how far a town reaches from its middle, in metres
+const DEFAULT_HALF = 600;                        // how far a town reaches from its middle, in metres:
+                                                 // 1.2 km across, the widest that still draws at half a
+                                                 // metre to the cell, which is what shop signs need
 const MAX_HALF = 800;                            // past about 500 m the page draws the town in coarser cells
 
 const FILTERS = ['way[building]', 'relation[building]', 'way["building:part"]', 'relation["building:part"]',

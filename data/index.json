@@ -133,8 +133,9 @@
   "name": "Wengen, Switzerland",
   "lat": 46.6054,
   "lon": 7.922,
-  "half": 350,
+  "half": 500,
   "start": null,
+  "cell": 0,
   "route": null
  },
  {
@@ -144,6 +145,19 @@
   "lon": 178.8333,
   "half": 500,
   "start": null,
+  "cell": 0,
+  "route": null
+ },
+ {
+  "slug": "cheam-village-sutton-london-uk",
+  "name": "Cheam Village, Sutton, London, UK",
+  "lat": 51.3596,
+  "lon": -0.2143,
+  "half": 500,
+  "start": {
+   "lat": 51.3593,
+   "lon": -0.2139
+  },
   "cell": 0,
   "route": null
  },

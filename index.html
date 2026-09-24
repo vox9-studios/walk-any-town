@@ -103,7 +103,7 @@ a{color:inherit}
   </form>
   <select id="flights" aria-label="Somewhere ready to walk" hidden><option value="">Somewhere ready…</option></select>
   <div class="controls">
-    <button id="bRun" aria-pressed="false">Run off</button>
+    <button id="bRun" aria-pressed="true">Run on</button>
     <button id="bDay" aria-pressed="true">Daylight</button>
     <button id="bTour" aria-pressed="false">Fly around</button>
     <button id="bColour" aria-pressed="true">Colour on</button>
@@ -125,7 +125,7 @@ a{color:inherit}
   </div>
   <canvas id="map" width="96" height="96" aria-hidden="true"></canvas>
   <div id="stick"><div id="nub"></div></div>
-  <button id="run" aria-pressed="false">Run</button>
+  <button id="run" aria-pressed="true">Run</button>
   <button id="jump">Jump</button>
 </div>
 <footer>
@@ -1316,7 +1316,7 @@ function along(d){                // where you are when you have flown this far
 }
 const keys={};let stick=null;const looks=new Map();let wantJump=false;
 
-let runLock=false;
+let runLock=true;                   // running is the default: a town is a big place to cross at walking pace
 const running=()=>runLock||!!(keys.ShiftLeft||keys.ShiftRight);
 
 const hAt=(x,y)=>{
@@ -1446,6 +1446,7 @@ function setRun(v){
   runEl.setAttribute('aria-pressed',String(v));
 }
 bRun.onclick=()=>{setRun(!runLock);takeControl();};
+setRun(runLock);                    // put both buttons in step with it
 runEl.addEventListener('pointerdown',e=>{e.preventDefault();setRun(!runLock);takeControl();});
 
 const MOVE=['KeyW','KeyA','KeyS','KeyD','ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space'];
@@ -1483,7 +1484,7 @@ cv.addEventListener('pointerup',endPtr);cv.addEventListener('pointercancel',endP
 cv.addEventListener('contextmenu',e=>e.preventDefault());
 
 const coarse=window.matchMedia&&matchMedia('(pointer:coarse)').matches;
-const baseHint=coarse?'Left thumb walks, right thumb looks; Run and Jump are bottom right.':'W A S D to walk, drag to look, space to jump, shift or the Run button to run.';
+const baseHint=coarse?'Left thumb walks, right thumb looks; Run and Jump are bottom right.':'W A S D to move, drag to look, space to jump. Running is on: press Run to slow to a walk.';
 hintEl.textContent=baseHint;
 
 /* ---------- the front screen: a city turning behind the search box ---------- */

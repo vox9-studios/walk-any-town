@@ -11,8 +11,8 @@ const OVERPASS = [
 const ELEVATION = 'https://api.opentopodata.org/v1';
 const DEM = ['eudem25m', 'mapzen', 'srtm30m'];   // the first that covers the whole square wins
 const ELE_N = 33;                                // ground is sampled on a 33 by 33 grid
-const DEFAULT_HALF = 200;                        // half the side of the square, in metres
-const MAX_HALF = 600;                            // at half a metre to a cell that is 2400 across, at two metres 600
+const DEFAULT_HALF = 500;                        // how far a town reaches from its middle, in metres
+const MAX_HALF = 800;                            // past about 500 m the page draws the town in coarser cells
 
 const FILTERS = ['way[building]', 'relation[building]', 'way["building:part"]', 'relation["building:part"]',
   'way[man_made=tower]', 'way[highway]', 'way[natural=water]', 'relation[natural=water]',
@@ -22,7 +22,8 @@ const KEEP = ['building', 'building:levels', 'building:material', 'building:faca
   'building:part', 'height', 'min_height', 'building:min_level', 'roof:shape', 'roof:levels', 'roof:height',
   'roof:material', 'roof:colour',
   'highway', 'name', 'area', 'tunnel', 'bridge', 'layer', 'lanes', 'width', 'oneway', 'surface', 'sidewalk',
-  'natural', 'waterway', 'landuse', 'amenity', 'shop', 'tourism', 'historic', 'man_made', 'tower:type'];
+  'natural', 'waterway', 'landuse', 'amenity', 'shop', 'tourism', 'historic', 'man_made', 'tower:type',
+  'brand', 'operator', 'cuisine'];
 
 const slug = s => s.toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
 const sleep = ms => new Promise(r => setTimeout(r, ms));
@@ -43,7 +44,7 @@ function readLine(line) {
       if (p.startsWith('@')) town.start = at;
       else if (p.startsWith('>')) town.route.push(at);
       else town.centre = at;
-    } else if (/^m\d+(?:\.\d+)?$/.test(p)) town.cell = Math.min(12, Math.max(0.5, +p.slice(1)));
+    } else if (/^m\d+(?:\.\d+)?$/.test(p)) town.cell = Math.min(12, Math.max(0.2, +p.slice(1)));
     else if (/^\d+$/.test(p)) town.half = Math.min(MAX_HALF, Math.max(100, +p));
   }
   return town;
@@ -251,6 +252,16 @@ for (const line of lines) {
       cell: want.cell, route: want.route.length ? want.route : null });
     console.log('fetched ', name, '-', elements.length, 'map features across', want.half * 2, 'metres');
   } catch (e) {
+    // A busy map server must not take a town off the site. Keep whatever was built last time.
+    if (await exists(file)) {
+      try {
+        const old = JSON.parse(await readFile(file, 'utf8'));
+        index.push({ slug: s, name, lat: old.lat, lon: old.lon, half: old.half || DEFAULT_HALF,
+          start: want.start, cell: want.cell || old.cell, route: want.route.length ? want.route : null });
+        console.log(`::warning::"${name}" could not be refetched (${e.message}); keeping the one already built`);
+        continue;
+      } catch (e2) {}
+    }
     console.log(`::warning::Skipped "${name}": ${e.message}`);
   }
 }

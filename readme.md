@@ -107,7 +107,11 @@ Market Place, Hexham, UK | 300
 High Street, East Grinstead, UK | 300 | 51.124221,-0.008164
 ```
 
-The reach is in metres, between 100 and 400, and defaults to 200. A centre of your own is how you hold two
+The reach is in metres, between 100 and 800, and defaults to 500, which is a good look around on foot.
+Every cell costs about thirteen bytes to hold and as much again while the world is being built, so a grid has
+a ceiling of two thousand cells across. Ask for more than fits and the square is not refused: the cells grow
+until it does. Five hundred metres comes out at half a metre to the cell, seven hundred and fifty at three
+quarters. A centre of your own is how you hold two
 streets in one square when neither of them sits in the middle: put the centre between them and widen the reach
 until both are inside. Changing either value rebuilds that town by itself on the next commit.
 
@@ -196,7 +200,7 @@ its map. The page reads, and falls back sensibly without:
 | Roofs | `roof:shape`, `roof:material`, `roof:colour`, `roof:height`, `roof:levels` |
 | Storeys | `building:levels`, `height` |
 | The shape of a modelled building | `building:part` with its own `height`, `roof:shape` and colours |
-| Shopfronts | `shop`, `amenity`, `name` |
+| Shopfronts | `shop`, `amenity`, `name`, `brand` |
 | Streets | `width`, `lanes`, `oneway`, `surface`, `highway` |
 
 Nor is a part that begins well above the ground with nothing under it. The London Eye has each of its
@@ -214,6 +218,10 @@ each part carries its own height and roof, and the page raises them separately, 
 holds 1,577 of them: the Palace of Westminster comes out with its towers and pinnacles rather than as one slab
 the shape of its footprint. Where nobody has modelled it, as at East Grinstead, a church still gets the invented
 west tower, because there is nothing better to go on.
+
+A shop that names its brand is painted in that brand's colours: Costa's maroon, Caffe Nero's near-black,
+Boots' dark blue, Coral's green with yellow lettering. Forty-six of the hundred and forty-one shops on East
+Grinstead High Street name one. The rest fall back to a colour picked from the trade.
 
 Where a tag is missing the page guesses from the kind of building and the shape of its footprint: a terrace of
 houses gets ridged roofs and chimneys, a deep commercial block gets a flat roof behind a parapet, and a

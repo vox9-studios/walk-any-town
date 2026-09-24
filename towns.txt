@@ -14,19 +14,22 @@
 #
 # Lines starting with # are ignored. After editing, commit: the site rebuilds itself.
 
-High Street, East Grinstead, UK | 300 | 51.124221,-0.008164
-The Square, Forest Row, UK | 300
-Agde, France | 300 | 43.313650,3.470200 | @43.314940,3.469291
+High Street, East Grinstead, UK | 500 | 51.124221,-0.008164
+The Square, Forest Row, UK | 500
+Agde, France | 500 | 43.313650,3.470200 | @43.314940,3.469291
 
 # Capitals, for the view from the air: press Fly around in any of them.
-Parliament Square, London, UK | 400 | 51.50200,-0.12310 | @51.50090,-0.12200 | >51.50360,-0.11850 | >51.50100,-0.12180 | >51.49900,-0.12530 | >51.49870,-0.12650
-Ile de la Cite, Paris, France | 400 | 48.85410,2.34780 | @48.85300,2.34990
-Charles Bridge, Prague, Czechia | 400 | 50.08630,14.41190 | @50.08650,14.41140
-Piazza Navona, Rome, Italy | 350 | 41.89890,12.47310
-Eiffel Tower, Paris, France | 450 | m2 | 48.85840,2.29450
-Lower Manhattan, New York, USA | 450 | m2 | 40.71270,-74.01340
+Parliament Square, London, UK | 500 | 51.50200,-0.12310 | @51.50090,-0.12200 | >51.50360,-0.11850 | >51.50100,-0.12180 | >51.49900,-0.12530 | >51.49870,-0.12650
+Ile de la Cite, Paris, France | 500 | 48.85410,2.34780 | @48.85300,2.34990
+Charles Bridge, Prague, Czechia | 500 | 50.08630,14.41190 | @50.08650,14.41140
+Piazza Navona, Rome, Italy | 500 | 41.89890,12.47310
+Eiffel Tower, Paris, France | 500 | m2 | 48.85840,2.29450
+Lower Manhattan, New York, USA | 500 | m2 | 40.71270,-74.01340
 
 # Small places, for the backdrop: a village, a mountain village, an island town.
-Bourton-on-the-Water, Gloucestershire, UK | 300 | 51.88560,-1.75560
-Wengen, Switzerland | 350 | 46.60540,7.92200
-Levuka, Fiji | 300 | -17.68330,178.83330
+Bourton-on-the-Water, Gloucestershire, UK | 500 | 51.88560,-1.75560
+Wengen, Switzerland | 500 | 46.60540,7.92200
+Levuka, Fiji | 500 | -17.68330,178.83330
+
+# A close walk: a short stretch of street at a quarter of a metre to the cell.
+Middle Row, East Grinstead, UK | 150 | m0.25 | 51.12405,-0.00815

@@ -149,6 +149,16 @@
   "route": null
  },
  {
+  "slug": "middle-row-east-grinstead-uk",
+  "name": "Middle Row, East Grinstead, UK",
+  "lat": 51.12405,
+  "lon": -0.00815,
+  "half": 150,
+  "start": null,
+  "cell": 0.25,
+  "route": null
+ },
+ {
   "slug": "thames-eye-to-o2",
   "name": "The Thames, Westminster to the O2",
   "lat": 51.50075,

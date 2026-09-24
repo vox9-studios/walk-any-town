@@ -4,7 +4,7 @@
   "name": "High Street, East Grinstead, UK",
   "lat": 51.124221,
   "lon": -0.008164,
-  "half": 500,
+  "half": 600,
   "start": null,
   "cell": 0,
   "route": null
@@ -14,7 +14,7 @@
   "name": "The Square, Forest Row, UK",
   "lat": 51.0981059,
   "lon": 0.0335803,
-  "half": 500,
+  "half": 600,
   "start": null,
   "cell": 0,
   "route": null
@@ -153,7 +153,7 @@
   "name": "Cheam Village, Sutton, London, UK",
   "lat": 51.3596,
   "lon": -0.2143,
-  "half": 500,
+  "half": 600,
   "start": {
    "lat": 51.3593,
    "lon": -0.2139

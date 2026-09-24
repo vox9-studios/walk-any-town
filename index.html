@@ -59,6 +59,7 @@ canvas{position:absolute;inset:0;width:100%;height:100%;display:block;touch-acti
   color:#f6f1da;text-shadow:0 2px 14px #07081ae6}
 #front p{margin:0;max-width:34rem;font-size:.92rem;line-height:1.5;color:#ece7cf;text-shadow:0 1px 10px #07081ae6}
 #front form{width:min(34rem,92%);flex:none}
+#front select{background:#07081ab8;color:#f6f1da;border-color:#e9e4c8cc;font-size:.92rem;padding:.55rem .7rem}
 #front input{background:#07081ab8;color:#f6f1da;border-color:#e9e4c8cc;font-size:1rem;padding:.72rem .85rem}
 #front input::placeholder{color:#e9e4c899}
 #front button{background:#f6f1da;color:#07081a;border-color:#f6f1da;font-size:1rem;padding:.72rem 1.1rem}
@@ -100,7 +101,7 @@ a{color:inherit}
     <datalist id="towns"></datalist>
     <button type="submit">Build it</button>
   </form>
-  <select id="flights" aria-label="Take a flight" hidden><option value="">Take a flight…</option></select>
+  <select id="flights" aria-label="Somewhere ready to walk" hidden><option value="">Somewhere ready…</option></select>
   <div class="controls">
     <button id="bRun" aria-pressed="false">Run off</button>
     <button id="bDay" aria-pressed="true">Daylight</button>
@@ -147,6 +148,8 @@ function fbm(x,y,o){let s=0,a=.5,n=0;for(let i=0;i<o;i++){s+=a*vnoise(x,y);n+=a;
 
 /* ---------- world: a 400 m square of town as one height map (1 cell = 0.5 m) ---------- */
 const G=2;                        // the datum the lowest ground in town sits on
+const SEE_M=220;                  // how far you can see, in metres rather than in cells
+let MAXD=440;                     // the same in cells, worked out whenever the world is sized
 let CELL=.5, N=800, CX=N/2, CY=N/2;   // a cell is half a metre to walk in, more to fly over
 let EYE,WALKC,RUNC,JUMPV,GRAV,STEPUP,BODY,STICK;   // a person, in cells of whatever size this world uses
 let Hm,                           // height of every cell
@@ -164,6 +167,7 @@ function sizeTo(half,cell){       // half is how far the map data reaches from t
   if(n>cap){n=cap;c=half*2/n;}
   if(n===N&&c===CELL&&Hm)return;
   CELL=c;
+  MAXD=Math.min(1000,Math.round(SEE_M/c));
   N=n;CX=CY=N/2;
   EYE=1.7/CELL;WALKC=5.625/CELL;RUNC=9.375/CELL;JUMPV=5.5/CELL;GRAV=19/CELL;
   STEPUP=.575/CELL;BODY=.175/CELL;STICK=.3/CELL;
@@ -703,7 +707,6 @@ function shadowMap(az,el){
 let W=0,H=0,chars,fgPix,bgPix,cw=6,chh=10;
 let HR=0,chhR=10,Lt;              // rows of picture, and how tall one is: with blocks on, two to a row of type
 let time=0, colour=true, blocks=0, aw=.01, ah=.01;
-const MAXD=380;
 const SUN={az:Math.PI/2+.35,el:.95,map:null}, MOON={az:-Math.PI/2-.5,el:.55,map:null},   // midday, just past south
       DUSK={az:Math.PI-.16,el:.14,map:null};      // low, and in the west, where the sun goes
 const MODENAME=['Night','Daylight','Evening'];
@@ -719,8 +722,8 @@ function setMode(m){
   const L=mode===1?SUN:mode===2?DUSK:MOON;
   if(!L.map&&worldReady)L.map=shadowMap(L.az,L.el);
   shadowH=L.map;LAZ=L.az;LEL=L.el;LDX=Math.cos(L.az);LDY=Math.sin(L.az);LCOS=Math.cos(L.el);LSIN=Math.sin(L.el);
-  if(mode===1){AR=.37;AG=.42;AB=.55;SR=.98;SG=.92;SB=.78;FOG=[180,202,228];FARG=[152,186,170];FOGK=.0038;BGK=.8;FGK=1.22;FGA=8;GAM=1;GAIN=1.05;}
-  else if(mode===2){AR=.30;AG=.29;AB=.36;SR=1.26;SG=.58;SB=.24;FOG=[190,150,130];FARG=[184,152,142];FOGK=.0042;BGK=.78;FGK=1.26;FGA=10;GAM=.92;GAIN=1.06;}
+  if(mode===1){AR=.37;AG=.42;AB=.55;SR=.98;SG=.92;SB=.78;FOG=[180,202,228];FARG=[152,186,170];FOGK=.0018;BGK=.8;FGK=1.22;FGA=8;GAM=1;GAIN=1.05;}
+  else if(mode===2){AR=.30;AG=.29;AB=.36;SR=1.26;SG=.58;SB=.24;FOG=[190,150,130];FARG=[184,152,142];FOGK=.0024;BGK=.78;FGK=1.26;FGA=10;GAM=.92;GAIN=1.06;}
   else{AR=.11;AG=.13;AB=.2;SR=.17;SG=.2;SB=.29;FOG=[24,21,44];FARG=[24,24,44];FOGK=.009;BGK=.6;FGK=1.6;FGA=26;GAM=.5;GAIN=1.3;}
 }
 setMode(1);
@@ -1168,11 +1171,18 @@ async function loadIndex(){                       // towns prepared ahead of tim
     const r=await fetch('data/index.json',{cache:'no-cache'});if(!r.ok)return;
     const list=await r.json();
     towns=Array.isArray(list)?list:[];
+    // Everything already built is on the shelf: the flights first, then the places to walk.
     const fl=document.getElementById('flights');
-    for(const t of towns)if(t.route&&t.route.length>1){
-      const o=document.createElement('option');o.value=t.slug;o.textContent=t.name;fl.appendChild(o);
-      hasFlights=true;fl.hidden=false;
-    }
+    const flights=towns.filter(t=>t.route&&t.route.length>1), walks=towns.filter(t=>!(t.route&&t.route.length>1));
+    const group=(label,list)=>{
+      if(!list.length)return;
+      const g=document.createElement('optgroup');g.label=label;
+      for(const t of list){const o=document.createElement('option');o.value=t.slug;o.textContent=t.name;g.appendChild(o);}
+      fl.appendChild(g);
+    };
+    group('Flights',flights);
+    group('Walks',walks);
+    hasFlights=towns.length>0;fl.hidden=!hasFlights;
     const dl=document.getElementById('towns');dl.textContent='';
     for(const t of towns){const o=document.createElement('option');o.value=t.name;dl.appendChild(o);}
   }catch(e){}
@@ -1209,10 +1219,14 @@ async function loadPlace(q){
       if(!r.ok)throw new Error('status '+r.status);geo=await r.json();
     }catch(e){throw new Error('"'+q+'" is not one of the towns prepared for this site, and the live place search could not be reached. Add it to towns.txt in the site\'s repository and it will be built in.');}
     if(!geo.length)throw new Error('No place called "'+q+'" was found. Try adding the town or country, such as "High Street, East Grinstead, UK".');
-    const lat=+geo[0].lat,lon=+geo[0].lon,half=200;
+    // A place typed in gets what a prepared one gets, as near as a live query can manage. It stops short
+    // of the full 500 m because the map servers charge steeply for area: a 400 m square answers in about
+    // two seconds where a 600 m one took nearly twenty.
+    const lat=+geo[0].lat,lon=+geo[0].lon,half=350;
     const dLat=half/110540,dLon=half/(111320*Math.cos(lat*Math.PI/180));
     const bb='('+(lat-dLat)+','+(lon-dLon)+','+(lat+dLat)+','+(lon+dLon)+')';
-    const ql='[out:json][timeout:25];('+['way[building]','relation[building]','way[highway]','way[natural=water]','relation[natural=water]','way[natural=wood]',
+    const ql='[out:json][timeout:60];('+['way[building]','relation[building]','way["building:part"]','relation["building:part"]',
+      'way[man_made=tower]','way[highway]','way[natural=water]','relation[natural=water]','way[natural=wood]',
       'way[waterway]','way[landuse=forest]','way[amenity=parking]','node[natural=tree]','node[shop][name]','node[amenity][name]'].map(f=>f+bb+';').join('')+');out geom;';
     const place=(geo[0].display_name||q).split(',').slice(0,3).join(',');
     let data=null;
@@ -1266,13 +1280,13 @@ fileEl.addEventListener('change',async()=>{
 });
 document.getElementById('go').addEventListener('submit',e=>{e.preventDefault();qEl.blur();leaveFront();loadPlace(qEl.value);});
 const flightsEl=document.getElementById('flights');
-flightsEl.addEventListener('change',async()=>{          // pick a flight and you are taken to the start of it
+flightsEl.addEventListener('change',async()=>{          // a flight takes off; a walk puts you on the ground
   const slug=flightsEl.value;flightsEl.value='';
   const t=towns.find(x=>x.slug===slug);
   if(!t||busy)return;
   leaveFront();
   await loadPlace(t.name);
-  if(worldReady&&route)setTour(true);
+  if(worldReady&&route&&t.route&&t.route.length>1)setTour(true);
 });
 
 /* ---------- walking, flying, input ---------- */
@@ -1493,9 +1507,9 @@ function showFront(on){
   mapEl.hidden=on||!showMap;      // no instruments over a piece of film
   frontEl.hidden=!on;
   controlsEl.hidden=on;
-  flightsEl.hidden=on||!hasFlights;
-  if(on)frontEl.insertBefore(formEl,noteEl);
-  else{headerEl.insertBefore(formEl,controlsEl);msgEl.textContent='';}
+  flightsEl.hidden=!hasFlights;
+  if(on){frontEl.insertBefore(formEl,noteEl);frontEl.insertBefore(flightsEl,noteEl);}
+  else{headerEl.insertBefore(formEl,controlsEl);headerEl.insertBefore(flightsEl,controlsEl);msgEl.textContent='';}
 }
 function leaveFront(){if(demo){showFront(false);setTour(false);}}
 document.getElementById('home').addEventListener('click',()=>{

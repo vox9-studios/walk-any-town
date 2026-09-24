@@ -12,7 +12,13 @@ Streets, buildings and the shape of the ground come from open map data.
   address, so nothing depends on outside servers while they walk.
 - Anyone can type a place that is not in `towns.txt` and the browser builds it there and then: it asks
   Nominatim where the place is, the Overpass servers for its buildings and streets, and Open-Meteo for the
-  shape of its ground. A town built this way is kept in that browser, so going back to it costs nobody
+  shape of its ground. It asks for the same things a prepared town gets, three-dimensional building parts
+  included, so a landmark typed in comes out as well as one on the shelf. It stops at 350 m from the middle
+  rather than 500, because the map servers charge steeply for area: a 400 m square answers in about two
+  seconds where a 600 m one took nearly twenty.
+- The places in `towns.txt` are not the places the page supports. They are the ones kept ready, so they open
+  in a fraction of a second and do not depend on a server being awake. Everywhere else in the world works by
+  typing it. A town built this way is kept in that browser, so going back to it costs nobody
   another request, and its address ending works as a link like any other.
 - A live lookup builds whatever the place search hands back, which for a misspelling can be somewhere else
   entirely: "Adge" is a building in Nantes, 700 km from Agde. The search box is set to the name that was

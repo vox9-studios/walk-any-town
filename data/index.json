@@ -119,6 +119,36 @@
   "route": null
  },
  {
+  "slug": "bourton-on-the-water-gloucestershire-uk",
+  "name": "Bourton-on-the-Water, Gloucestershire, UK",
+  "lat": 51.8856,
+  "lon": -1.7556,
+  "half": 300,
+  "start": null,
+  "cell": 0,
+  "route": null
+ },
+ {
+  "slug": "wengen-switzerland",
+  "name": "Wengen, Switzerland",
+  "lat": 46.6054,
+  "lon": 7.922,
+  "half": 350,
+  "start": null,
+  "cell": 0,
+  "route": null
+ },
+ {
+  "slug": "levuka-fiji",
+  "name": "Levuka, Fiji",
+  "lat": -17.6833,
+  "lon": 178.8333,
+  "half": 300,
+  "start": null,
+  "cell": 0,
+  "route": null
+ },
+ {
   "slug": "thames-eye-to-o2",
   "name": "The Thames, Westminster to the O2",
   "lat": 51.50075,

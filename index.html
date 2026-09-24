@@ -43,6 +43,12 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--amber);outline-
 #stage{flex:1;min-height:0;position:relative;background:var(--night);touch-action:none;overflow:hidden}
 canvas{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none;cursor:grab;transition:opacity .5s}
 .controls[hidden]{display:none}
+/* bars top and bottom while the showcase runs: it is a piece of film, not a view */
+#stage.cinema::before,#stage.cinema::after{
+  content:'';position:absolute;left:0;right:0;height:6.5%;background:#07081a;pointer-events:none;z-index:2;
+}
+#stage.cinema::before{top:0}
+#stage.cinema::after{bottom:0}
 #front{
   position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
   gap:.95rem;padding:1.2rem;text-align:center;pointer-events:none;
@@ -1116,7 +1122,8 @@ const slug=s=>s.toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g,'-').repla
 async function loadIndex(){                       // towns prepared ahead of time live beside this page, in data/
   try{
     const r=await fetch('data/index.json',{cache:'no-cache'});if(!r.ok)return;
-    towns=await r.json();
+    const list=await r.json();
+    towns=Array.isArray(list)?list:[];
     const fl=document.getElementById('flights');
     for(const t of towns)if(t.route&&t.route.length>1){
       const o=document.createElement('option');o.value=t.slug;o.textContent=t.name;fl.appendChild(o);
@@ -1423,12 +1430,12 @@ hintEl.textContent=baseHint;
 
 /* ---------- the front screen: a city turning behind the search box ---------- */
 const SHOWCASE=[
-  {slug:'lower-manhattan-new-york-usa', note:'New York, round the towers of Lower Manhattan',
-   focus:[40.71270,-74.01340], radius:400, ratio:.78, height:430, aim:210, secs:22},
-  {slug:'parliament-square-london-uk', note:'London, over the river by the Wheel',
-   focus:[51.50150,-0.12150], radius:330, ratio:.8, height:190, aim:45, secs:22},
-  {slug:'ile-de-la-cite-paris-france', note:'Paris again, around Notre-Dame',
-   focus:[48.85300,2.34990], radius:300, ratio:.78, height:170, aim:40, secs:22},
+  {slug:'bourton-on-the-water-gloucestershire-uk', note:'Bourton-on-the-Water, over the Windrush',
+   focus:[51.88560,-1.75560], radius:200, ratio:.76, height:85, aim:8, secs:22},
+  {slug:'wengen-switzerland', note:'Wengen, on its shelf above the valley',
+   focus:[46.60540,7.92200], radius:270, ratio:.8, height:170, aim:25, secs:22},
+  {slug:'levuka-fiji', note:'Levuka, between the hills and the reef',
+   focus:[-17.68330,178.83330], radius:230, ratio:.78, height:110, aim:12, secs:22},
 ];
 const frontEl=document.getElementById('front'), noteEl=document.getElementById('frontnote'),
       formEl=document.getElementById('go'), controlsEl=document.querySelector('.controls'),
@@ -1438,6 +1445,8 @@ let demoIdx=0, demoT=0, demoBusy=false, hasFlights=false;
 function showFront(on){
   demo=on;
   easeRows=!on;                   // no half-shaded rows in a showcase: blocks are there for the detail
+  stage.classList.toggle('cinema',on);
+  mapEl.hidden=on||!showMap;      // no instruments over a piece of film
   frontEl.hidden=!on;
   controlsEl.hidden=on;
   flightsEl.hidden=on||!hasFlights;

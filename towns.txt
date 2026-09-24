@@ -25,3 +25,8 @@ Charles Bridge, Prague, Czechia | 400 | 50.08630,14.41190 | @50.08650,14.41140
 Piazza Navona, Rome, Italy | 350 | 41.89890,12.47310
 Eiffel Tower, Paris, France | 450 | m2 | 48.85840,2.29450
 Lower Manhattan, New York, USA | 450 | m2 | 40.71270,-74.01340
+
+# Small places, for the backdrop: a village, a mountain village, an island town.
+Bourton-on-the-Water, Gloucestershire, UK | 300 | 51.88560,-1.75560
+Wengen, Switzerland | 350 | 46.60540,7.92200
+Levuka, Fiji | 300 | -17.68330,178.83330

@@ -27,8 +27,14 @@ Streets, buildings and the shape of the ground come from open map data.
 
 Arriving with no place asked for puts up the front screen: the title, the search box in the middle, and a city
 turning slowly behind it. Each showcase is a real place from `data/`, flown on an ellipse around one landmark
-for twenty-two seconds before the next: the towers of Lower Manhattan, then the river by the Wheel, then
-Notre-Dame. It runs at the finest setting, in blocks, in the evening light. The list is
+for twenty-two seconds before the next: Bourton-on-the-Water over the Windrush, Wengen on its shelf above the
+valley, Levuka between the hills and the reef. Small places read better from the air than big ones: a village
+is a whole thing at two hundred metres, where a city is a wall of slabs. It runs at the finest setting, in
+blocks, in the evening light, with bars top and bottom, because it is a piece of film rather than a view.
+
+A flight takes its height from the land, not from the rooftops. Taking it from the surface means leaping the
+height of every tower passed over: measured across one lap of Lower Manhattan the camera ran between 440 and
+755 m and moved more than two metres vertically on 141 frames out of 1,320. The list is
 `SHOWCASE` in the page, each entry naming a slug, what to circle, how far out, how high and how long.
 
 Type a place, pick a flight, or touch the view, and the front screen stands aside: the search box moves up into
